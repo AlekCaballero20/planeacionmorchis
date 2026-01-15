@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#121826" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Ritual - Alek & Cata</title>
+
+  <meta name="description" content="Ritual: rotación de actividades + checklist + estadísticas. Offline, simple y útil." />
+
+  <!--
+    CSS: usa ruta relativa explícita para evitar líos de folders (GitHub Pages / subcarpetas).
+    Si esto no carga, abajo hay fallback inline para que no se vea como HTML sin ropa.
+  -->
+  <link id="appStyles" rel="stylesheet" href="./styles.css" />
+
+  <!-- Fallback mínimo si NO carga styles.css (evita el look “terrible”) -->
+  <style>
+    :root{
+      --bg:#0b1220; --panel:#0f172a; --text:#e5e7eb; --muted:#9ca3af;
+      --line:#22304a; --accent:#7c3aed;
+      --r:16px;
+      --tap:44px;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text)}
+    .app{min-height:100%;display:flex;flex-direction:column}
+    .topbar{position:sticky;top:0;z-index:10;background:rgba(15,23,42,.92);border-bottom:1px solid var(--line);padding:12px 14px;display:flex;gap:12px;align-items:center;justify-content:space-between}
+    .brand{display:flex;align-items:center;gap:10px;min-width:0}
+    .logo{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg, rgba(124,58,237,.95), rgba(34,197,94,.75));font-weight:900;box-shadow:var(--shadow);flex:0 0 auto}
+    .brandText{min-width:0}
+    .brandText .title{font-weight:900;line-height:1.1}
+    .brandText .subtitle{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+    .topbarActions{display:flex;gap:10px;align-items:center;min-width:0}
+    .tabs{display:flex;gap:8px;align-items:center;overflow-x:auto;max-width:100%;scrollbar-width:thin}
+    .tab{min-height:var(--tap);padding:8px 12px;border-radius:999px;border:1px solid rgba(34,48,74,.9);background:rgba(17,28,51,.55);color:var(--text);font-weight:850;white-space:nowrap;cursor:pointer}
+    .tab.isActive{border-color:rgba(124,58,237,.6);background:rgba(124,58,237,.18)}
+    .btn{min-height:var(--tap);padding:8px 12px;border-radius:12px;border:1px solid rgba(124,58,237,.55);background:rgba(124,58,237,.18);color:var(--text);font-weight:850;cursor:pointer;white-space:nowrap}
+    .btn.ghost{border-color:rgba(34,48,74,.9);background:rgba(17,28,51,.55)}
+    .iconBtn{width:40px;height:40px;border-radius:12px;border:1px solid rgba(34,48,74,.9);background:rgba(17,28,51,.55);color:var(--text);cursor:pointer}
+    .sep{width:1px;height:26px;background:rgba(34,48,74,.9)}
+    .layout{max-width:1240px;margin:0 auto;padding:14px;display:grid;grid-template-columns:380px 1fr;gap:14px;width:100%}
+    @media (max-width:980px){.layout{grid-template-columns:1fr}.sep{display:none}}
+    .card{background:rgba(15,23,42,.92);border:1px solid rgba(34,48,74,.7);border-radius:22px;box-shadow:var(--shadow);padding:14px}
+    .hidden{display:none !important}
+    .footer{margin-top:auto;padding:12px 14px;display:flex;justify-content:space-between;gap:10px;color:var(--muted)}
+    @media (max-width:980px){.footer{flex-direction:column}}
+    .skipLink{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden}
+    .skipLink:focus{left:12px;top:12px;width:auto;height:auto;z-index:9999;background:#111c33;color:#fff;padding:10px 12px;border-radius:12px;border:1px solid rgba(124,58,237,.6)}
+    .noscript{margin:14px;border:1px solid rgba(239,68,68,.5);background:rgba(239,68,68,.08);padding:12px;border-radius:16px}
+    .cssFail{
+      position:sticky;top:0;z-index:9999;
+      background:rgba(239,68,68,.12);
+      border-bottom:1px solid rgba(239,68,68,.35);
+      padding:10px 14px;
+      font-size:13px;color:#ffd6d6;
+      display:flex;gap:10px;align-items:center;justify-content:space-between
+    }
+    .cssFail b{color:#fff}
+    .cssFail .miniBtn{
+      border:1px solid rgba(239,68,68,.4);
+      background:rgba(239,68,68,.12);
+      color:#fff;border-radius:12px;
+      padding:8px 10px;font-weight:850;cursor:pointer
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Accesibilidad: saltar navegación -->
+  <a class="skipLink" href="#main">Saltar al contenido</a>
+
+  <noscript>
+    <div class="noscript">
+      Esta app necesita JavaScript para funcionar. Sí, es <b>2026</b>. 🙃
+    </div>
+  </noscript>
+
+  <!-- Banner solo si NO cargó el CSS (diagnóstico visible) -->
+  <div id="cssFail" class="cssFail hidden" role="status" aria-live="polite">
+    <div>⚠️ <b>No cargó styles.css</b> (estás viendo el modo “sin ropa”). Revisa ruta/hosting.</div>
+    <button class="miniBtn" id="btnCssRetry" type="button" title="Reintentar cargar CSS">Reintentar</button>
+  </div>
+
+  <!-- Toast region (UI pro) -->
+  <div id="toastRegion" class="toastRegion" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Modal overlay (listo para usar) -->
+  <div id="modalOverlay" class="modalOverlay hidden" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalDesc">
+      <div class="modalHeader">
+        <h2 id="modalTitle">Modal</h2>
+        <button class="iconBtn" id="modalClose" type="button" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="modalBody">
+        <p id="modalDesc" class="muted">Contenido del modal…</p>
+        <div id="modalContent"></div>
+      </div>
+      <div class="modalFooter" id="modalActions"></div>
+    </div>
+  </div>
+
+  <div class="app">
+    <!-- Topbar -->
+    <header class="topbar" role="banner">
+      <div class="brand" aria-label="Ritual">
+        <div class="logo" aria-hidden="true">R</div>
+        <div class="brandText">
+          <div class="title">Ritual</div>
+          <div class="subtitle">Rotación + stats · Alek & Cata</div>
+        </div>
+      </div>
+
+      <!-- Navegación -->
+      <nav class="topbarActions" aria-label="Navegación principal">
+        <div class="tabs" role="tablist" aria-label="Vistas">
+          <button class="tab isActive" id="btnToday" type="button" role="tab" aria-selected="true" aria-controls="viewToday">Hoy</button>
+          <button class="tab" id="btnWeek" type="button" role="tab" aria-selected="false" aria-controls="viewWeek">Semana</button>
+          <button class="tab" id="btnManage" type="button" role="tab" aria-selected="false" aria-controls="viewManage">Actividades</button>
+
+          <!-- Nuevas vistas (si app.js no las conecta, quedan ahí tranquilas) -->
+          <button class="tab" id="btnDashboard" type="button" role="tab" aria-selected="false" aria-controls="viewDashboard">Dashboard</button>
+          <button class="tab" id="btnStats" type="button" role="tab" aria-selected="false" aria-controls="viewStats">Estadísticas</button>
+          <button class="tab" id="btnSettings" type="button" role="tab" aria-selected="false" aria-controls="viewSettings">Ajustes</button>
+        </div>
+
+        <div class="sep" aria-hidden="true"></div>
+
+        <!-- Acciones globales -->
+        <div class="topbarUtility" role="group" aria-label="Acciones globales">
+          <button class="btn" id="btnExport" type="button" title="Exportar backup JSON">Exportar</button>
+          <label class="btn" for="importFile" style="cursor:pointer;" title="Importar backup JSON">Importar</label>
+          <input id="importFile" type="file" accept="application/json" hidden />
+          <button class="btn ghost" id="btnExportCSV" type="button" title="Exportar CSV (para Sheets)">Export CSV</button>
+        </div>
+      </nav>
+    </header>
+
+    <!-- Main -->
+    <main class="layout" id="main" role="main">
+      <!-- Sidebar -->
+      <aside class="side" aria-label="Panel lateral">
+        <section class="card" aria-labelledby="dateTitle">
+          <div class="cardHeader">
+            <h2 id="dateTitle">Hoy</h2>
+            <div class="mini" role="group" aria-label="Navegación por día">
+              <button class="iconBtn" id="prevDay" type="button" title="Día anterior" aria-label="Día anterior">◀</button>
+              <button class="iconBtn" id="nextDay" type="button" title="Día siguiente" aria-label="Día siguiente">▶</button>
+            </div>
+          </div>
+
+          <div class="kpis kpis3" role="status" aria-live="polite">
+            <div class="kpi">
+              <div class="kpiLabel">Cumplimiento</div>
+              <div class="kpiValue" id="kpiDaily">0%</div>
+              <div class="kpiHelp" id="kpiDailyHelp">del objetivo del día</div>
+            </div>
+
+            <div class="kpi">
+              <div class="kpiLabel">Hecho / Total</div>
+              <div class="kpiValue" id="kpiCount">0/0</div>
+              <div class="kpiHelp">según tu modo</div>
+            </div>
+
+            <div class="kpi">
+              <div class="kpiLabel">Tiempo de error</div>
+              <div class="kpiValue" id="kpiError">0</div>
+              <div class="kpiHelp">registrado</div>
+            </div>
+          </div>
+
+          <div class="divider" aria-hidden="true"></div>
+
+          <div class="balanceRow" aria-label="Balance del día">
+            <div class="balanceLabel">Balance</div>
+            <div class="balancePill" id="balancePill" title="Balance entre carga y descanso">—</div>
+          </div>
+
+          <div class="divider" aria-hidden="true"></div>
+
+          <div class="filters" aria-label="Filtros">
+            <div class="row2">
+              <label class="srOnly" for="search">Buscar actividad</label>
+              <input id="search" class="input" placeholder="Buscar actividad..." autocomplete="off" />
+
+              <label class="srOnly" for="categoryFilter">Filtrar por categoría</label>
+              <select id="categoryFilter" class="select" title="Filtrar por categoría">
+                <option value="__all__">Todas las categorías</option>
+              </select>
+            </div>
+
+            <label class="srOnly" for="modeFilter">Qué quieres ver</label>
+            <select id="modeFilter" class="select" title="Qué quieres ver">
+              <option value="all" selected>Todas (diarias + rotación)</option>
+              <option value="daily">Diarias (Check diario: SÍ)</option>
+              <option value="complement">Rotación (Complementarias: NO)</option>
+            </select>
+
+            <label class="srOnly" for="energyFilter">Filtrar por energía</label>
+            <select id="energyFilter" class="select" title="Filtrar por energía">
+              <option value="__all__" selected>Toda energía</option>
+              <option value="low">Energía baja</option>
+              <option value="mid">Energía media</option>
+              <option value="high">Energía alta</option>
+            </select>
+
+            <div class="chips" role="group" aria-label="Opciones de visualización">
+              <button class="chip" id="chipPending" type="button" aria-pressed="true" title="Ver pendientes primero">Pendientes primero</button>
+              <button class="chip" id="chipShowDone" type="button" aria-pressed="true" title="Mostrar también lo ya hecho">Mostrar hechas</button>
+            </div>
+
+            <div class="hint tiny">
+              Tip: si “no ves” una actividad, casi siempre es porque el filtro te la está escondiendo. Los filtros también mienten, como los políticos.
+            </div>
+          </div>
+        </section>
+
+        <section class="card" aria-label="Notas del día">
+          <div class="cardHeader">
+            <h3>Notas del día</h3>
+            <span class="pill" id="noteSaved">guardado</span>
+          </div>
+          <label class="srOnly" for="dayNotes">Notas del día</label>
+          <textarea id="dayNotes" class="textarea" placeholder="Qué funcionó, qué estorbó, qué toca ajustar…"></textarea>
+        </section>
+
+        <section class="card" aria-label="Acciones rápidas">
+          <div class="cardHeader">
+            <h3>Acciones rápidas</h3>
+          </div>
+
+          <div class="quickActions">
+            <button class="btn ghost" id="btnUncheckAll" type="button" title="Desmarcar diarias visibles">Desmarcar</button>
+            <button class="btn ghost" id="btnCheckAll" type="button" title="Marcar diarias visibles">Marcar</button>
+            <button class="btn ghost" id="btnResetFilters" type="button" title="Volver a mostrar todo">Reset filtros</button>
+          </div>
+
+          <div class="divider" aria-hidden="true"></div>
+
+          <div class="hint">
+            Meta realista: que el día tenga sentido, no que quede perfecto. Perfecto es para renders, no para agendas 😌
+          </div>
+        </section>
+      </aside>
+
+      <!-- Content -->
+      <section class="content" aria-label="Contenido principal">
+        <section class="card" id="viewToday" role="tabpanel" aria-label="Vista de hoy">
+          <div class="cardHeader">
+            <div>
+              <h2>Checklist</h2>
+              <div class="muted" id="todaySub">Pendientes + Hechas (según filtro)</div>
+            </div>
+
+            <div class="mini">
+              <button class="btn ghost" id="btnCollapseDone" type="button" title="Colapsar/expandir hechas">Hechas: ON</button>
+            </div>
+          </div>
+
+          <div class="bucket" aria-label="Pendientes">
+            <div class="bucketHeader">
+              <div class="bucketTitle">Pendientes</div>
+              <div class="bucketMeta"><span class="pill" id="pendingCount">0</span></div>
+            </div>
+            <div class="list" id="pendingList"></div>
+          </div>
+
+          <div class="divider" aria-hidden="true"></div>
+
+          <div class="bucket" id="doneBucket" aria-label="Hechas">
+            <div class="bucketHeader">
+              <div class="bucketTitle">Hechas</div>
+              <div class="bucketMeta"><span class="pill" id="doneCount">0</span></div>
+            </div>
+            <div class="list" id="doneList"></div>
+          </div>
+        </section>
+
+        <section class="card hidden" id="viewWeek" role="tabpanel" aria-label="Vista semanal">
+          <div class="cardHeader">
+            <div>
+              <h2>Semana</h2>
+              <div class="muted" id="weekSub">Resumen y porcentajes</div>
+            </div>
+
+            <div class="mini" role="group" aria-label="Navegación por semana">
+              <button class="iconBtn" id="prevWeek" type="button" title="Semana anterior" aria-label="Semana anterior">◀</button>
+              <button class="iconBtn" id="nextWeek" type="button" title="Semana siguiente" aria-label="Semana siguiente">▶</button>
+            </div>
+          </div>
+
+          <div class="weekGrid" id="weekGrid"></div>
+
+          <div class="divider" aria-hidden="true"></div>
+
+          <div class="weekStats">
+            <div class="subcard">
+              <div class="subTitle">Por día</div>
+              <div id="weekByDay"></div>
+            </div>
+
+            <div class="subcard">
+              <div class="subTitle">Por categoría</div>
+              <div id="weekByCategory"></div>
+            </div>
+          </div>
+
+          <div class="divider" aria-hidden="true"></div>
+
+          <div class="subcard">
+            <div class="subTitle">Leyenda</div>
+            <div class="hint tiny">
+              Click en un día para saltar directo a ese día. Los humanos aman saltarse pasos, así que les doy gusto.
+            </div>
+          </div>
+        </section>
+
+        <section class="card hidden" id="viewManage" role="tabpanel" aria-label="Administrar actividades">
+          <div class="cardHeader">
+            <div>
+              <h2>Actividades</h2>
+              <div class="muted">Agregar, editar, borrar, ordenar tu caos</div>
+            </div>
+
+            <div class="mini">
+              <button class="btn" id="btnAdd" type="button">+ Agregar</button>
+            </div>
+          </div>
+
+          <div class="manageForm hidden" id="manageForm" aria-label="Formulario de actividad">
+            <div class="grid2">
+              <div>
+                <label class="label" for="mName">Actividad</label>
+                <input id="mName" class="input" placeholder="Ej: Programación, Patinar..." />
+              </div>
+              <div>
+                <label class="label" for="mCategory">Categoría</label>
+                <input id="mCategory" class="input" placeholder="Ej: Educación, Salud..." />
+              </div>
+            </div>
+
+            <div class="grid2">
+              <div>
+                <label class="label" for="mType">Modo</label>
+                <select id="mType" class="select">
+                  <option value="daily">Diaria (Check diario: SÍ)</option>
+                  <option value="complement">Rotación semanal (Complementaria: NO)</option>
+                </select>
+              </div>
+              <div>
+                <label class="label" for="mSub">Subcategoría (opcional)</label>
+                <input id="mSub" class="input" placeholder="Ej: Videojuegos, Francés..." />
+              </div>
+            </div>
+
+            <div class="grid2">
+              <div>
+                <label class="label" for="mDuration">Duración (min)</label>
+                <input id="mDuration" class="input" type="number" min="0" step="5" placeholder="Ej: 15" />
+              </div>
+              <div>
+                <label class="label" for="mEnergy">Energía</label>
+                <select id="mEnergy" class="select">
+                  <option value="__none__" selected>Sin especificar</option>
+                  <option value="low">Baja</option>
+                  <option value="mid">Media</option>
+                  <option value="high">Alta</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="mini right">
+              <button class="btn ghost" id="btnCancelEdit" type="button">Cancelar</button>
+              <button class="btn" id="btnSaveActivity" type="button">Guardar</button>
+            </div>
+          </div>
+
+          <div class="divider" aria-hidden="true"></div>
+
+          <div class="manageTools" aria-label="Herramientas de administración">
+            <label class="srOnly" for="manageSearch">Buscar en actividades</label>
+            <input id="manageSearch" class="input" placeholder="Buscar en actividades..." />
+
+            <label class="srOnly" for="manageFilterType">Filtrar por tipo</label>
+            <select id="manageFilterType" class="select" title="Filtrar por tipo">
+              <option value="__all__" selected>Todos los tipos</option>
+              <option value="daily">Solo diarias</option>
+              <option value="complement">Solo rotación</option>
+            </select>
+          </div>
+
+          <div class="divider" aria-hidden="true"></div>
+
+          <div class="manageList" id="manageList"></div>
+
+          <div class="divider" aria-hidden="true"></div>
+
+          <div class="hint tiny">
+            Si algo “no te deja borrar”, normalmente es porque el JS no lo tiene habilitado o porque lo estás filtrando sin querer.
+            El HTML acá ya está listo para que el manejo sea completo.
+          </div>
+        </section>
+
+        <!-- NUEVAS: placeholders (no rompen si app.js no las usa aún) -->
+        <section class="card hidden" id="viewDashboard" role="tabpanel" aria-label="Dashboard">
+          <div class="cardHeader">
+            <div>
+              <h2>Dashboard</h2>
+              <div class="muted">Tu semana, sin drama: balance, tendencias y foco</div>
+            </div>
+            <div class="mini">
+              <button class="btn ghost" id="btnRefreshDashboard" type="button" title="Recalcular dashboard">Actualizar</button>
+            </div>
+          </div>
+
+          <div class="hint tiny">
+            Vista lista. Cuando conectemos app.js, acá van gráficos y resumen.
+          </div>
+
+          <div class="dashGrid">
+            <div class="subcard">
+              <div class="subTitle">Resumen</div>
+              <div class="dashKpis" id="dashKpis"></div>
+            </div>
+
+            <div class="subcard">
+              <div class="subTitle">Balance carga vs descanso</div>
+              <div class="chartWrap">
+                <canvas id="chartBalance" width="800" height="280" aria-label="Gráfico balance carga vs descanso"></canvas>
+              </div>
+              <div class="hint tiny" id="chartBalanceHint">—</div>
+            </div>
+
+            <div class="subcard">
+              <div class="subTitle">Energía</div>
+              <div class="chartWrap">
+                <canvas id="chartEnergy" width="800" height="280" aria-label="Gráfico de energía"></canvas>
+              </div>
+              <div class="hint tiny" id="chartEnergyHint">—</div>
+            </div>
+
+            <div class="subcard">
+              <div class="subTitle">Top categorías</div>
+              <div id="dashTopCategories"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card hidden" id="viewStats" role="tabpanel" aria-label="Estadísticas">
+          <div class="cardHeader">
+            <div>
+              <h2>Estadísticas</h2>
+              <div class="muted">Más datos, menos culpa</div>
+            </div>
+
+            <div class="mini">
+              <select id="statsRange" class="select" title="Rango de estadísticas">
+                <option value="7">Últimos 7 días</option>
+                <option value="14">Últimos 14 días</option>
+                <option value="30" selected>Últimos 30 días</option>
+                <option value="90">Últimos 90 días</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="hint tiny">
+            Vista lista. Falta conectar la lógica en app.js para llenar estos bloques.
+          </div>
+
+          <div class="statsGrid">
+            <div class="subcard">
+              <div class="subTitle">Consistencia</div>
+              <div id="statsConsistency"></div>
+            </div>
+
+            <div class="subcard">
+              <div class="subTitle">Hechas vs pendientes</div>
+              <div class="chartWrap">
+                <canvas id="chartDone" width="800" height="280" aria-label="Gráfico hechas vs pendientes"></canvas>
+              </div>
+            </div>
+
+            <div class="subcard">
+              <div class="subTitle">Por categoría</div>
+              <div id="statsByCategory"></div>
+            </div>
+
+            <div class="subcard">
+              <div class="subTitle">Actividades evitadas</div>
+              <div class="hint tiny">Las que casi nunca marcas. No para juzgar, para entender.</div>
+              <div id="statsAvoided"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card hidden" id="viewSettings" role="tabpanel" aria-label="Ajustes">
+          <div class="cardHeader">
+            <div>
+              <h2>Ajustes</h2>
+              <div class="muted">Backups, exportación y mantenimiento</div>
+            </div>
+          </div>
+
+          <div class="settingsGrid">
+            <div class="subcard">
+              <div class="subTitle">Backups</div>
+              <div class="settingsRow">
+                <button class="btn" id="btnExport2" type="button">Exportar JSON</button>
+                <label class="btn ghost" for="importFile2" style="cursor:pointer;">Importar JSON</label>
+                <input id="importFile2" type="file" accept="application/json" hidden />
+              </div>
+              <div class="hint tiny">
+                Exportar antes de “probar cositas” es lo más cercano a la paz mental en software.
+              </div>
+            </div>
+
+            <div class="subcard">
+              <div class="subTitle">Exportación para Sheets</div>
+              <div class="settingsRow">
+                <button class="btn ghost" id="btnExportCSV2" type="button">Exportar CSV</button>
+              </div>
+              <div class="hint tiny">
+                Ideal para llevarlo a Google Sheets y hacer magia con fórmulas y gráficos.
+              </div>
+            </div>
+
+            <div class="subcard">
+              <div class="subTitle">Mantenimiento</div>
+              <div class="settingsRow">
+                <button class="btn danger" id="btnWipeAll" type="button" title="Borrar todos los datos locales">
+                  Borrar datos locales
+                </button>
+              </div>
+              <div class="hint tiny">
+                Esto es nuclear. Úsenlo solo si de verdad quieren reiniciar todo.
+              </div>
+            </div>
+
+            <div class="subcard">
+              <div class="subTitle">Info</div>
+              <div class="muted tiny" id="appInfo">
+                Offline · localStorage · sin cuentas · sin nube · sin espionaje (por ahora).
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <footer class="footer" role="contentinfo">
+      <div class="muted">Offline · localStorage</div>
+      <div class="muted">Hecho para humanos con demasiadas ideas ❤️</div>
+    </footer>
+  </div>
+
+  <!-- Scripts -->
+  <script src="./seed.js"></script>
+  <script src="./app.js"></script>
+
+  <!-- Mini-diagnóstico (sin dependencias): detecta si cargó styles.css -->
+  <script>
+    (function () {
+      const link = document.getElementById('appStyles');
+      const fail = document.getElementById('cssFail');
+      const retry = document.getElementById('btnCssRetry');
+
+      function showFail() {
+        if (fail) fail.classList.remove('hidden');
+      }
+
+      function hideFail() {
+        if (fail) fail.classList.add('hidden');
+      }
+
+      // Si el link dispara error -> no cargó
+      if (link) {
+        link.addEventListener('error', showFail);
+        link.addEventListener('load', hideFail);
+      }
+
+      // Heurística: si en 700ms no hay hoja cargada, probablemente falló
+      setTimeout(() => {
+        try {
+          const sheets = Array.from(document.styleSheets || []);
+          const hasExternal = sheets.some(s => (s.href || '').includes('styles.css'));
+          if (!hasExternal) showFail();
+        } catch (_) {
+          // Si el navegador bloquea leer styleSheets por CORS, igual mostramos el banner
+          showFail();
+        }
+      }, 700);
+
+      if (retry && link) {
+        retry.addEventListener('click', () => {
+          const href = (link.getAttribute('href') || './styles.css').split('?')[0];
+          link.setAttribute('href', href + '?v=' + Date.now());
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
