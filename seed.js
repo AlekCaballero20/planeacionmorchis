@@ -1,58 +1,359 @@
 // seed.js
-// Si ya existe data guardada, no pisa nada.
+// Bitácora - Alek & Cata
+// Seed inicial.
+// Si ya existe data guardada en localStorage, esto NO la pisa.
+// Solo sirve como base para primeras cargas o reinicios.
 
-window.RITUAL_SEED = [
-  // Trabajo
-  { name: "Musicala", category: "Trabajo", subcategory: "Musicala", type: "daily" },
+(function () {
+  const seed = [
+    /* ======================================================
+       TRABAJO / PROYECTOS
+    ====================================================== */
+    {
+      name: "Musicala",
+      category: "Trabajo",
+      subcategory: "Musicala",
+      type: "daily",
+      energy: "high",
+      duration: 120,
+    },
+    {
+      name: "Planeación",
+      category: "Trabajo",
+      subcategory: "Organización",
+      type: "complement",
+      energy: "mid",
+      duration: 45,
+    },
+    {
+      name: "Administración",
+      category: "Trabajo",
+      subcategory: "Gestión",
+      type: "complement",
+      energy: "high",
+      duration: 60,
+    },
+    {
+      name: "Finanzas",
+      category: "Trabajo",
+      subcategory: "Control",
+      type: "complement",
+      energy: "high",
+      duration: 40,
+    },
 
-  // Entretenimiento
-  { name: "Videojuegos", category: "Entretenimiento", subcategory: "Videojuegos", type: "daily" },
-  { name: "Juegos de mesa", category: "Entretenimiento", subcategory: "Juegos de mesa", type: "daily" },
-  { name: "Lectura", category: "Entretenimiento", subcategory: "Lectura", type: "daily" },
-  { name: "Escritura", category: "Entretenimiento", subcategory: "Escritura", type: "daily" },
-  { name: "Series/Películas", category: "Entretenimiento", subcategory: "Series/Películas", type: "daily" },
+    /* ======================================================
+       APRENDIZAJE / CREACIÓN
+    ====================================================== */
+    {
+      name: "Música",
+      category: "Aprendizaje",
+      subcategory: "Música",
+      type: "daily",
+      energy: "mid",
+      duration: 45,
+    },
+    {
+      name: "Arte",
+      category: "Aprendizaje",
+      subcategory: "Arte",
+      type: "complement",
+      energy: "mid",
+      duration: 45,
+    },
+    {
+      name: "Dibujo",
+      category: "Aprendizaje",
+      subcategory: "Visual",
+      type: "complement",
+      energy: "mid",
+      duration: 40,
+    },
+    {
+      name: "Animación",
+      category: "Aprendizaje",
+      subcategory: "Visual",
+      type: "complement",
+      energy: "high",
+      duration: 60,
+    },
+    {
+      name: "Programación",
+      category: "Aprendizaje",
+      subcategory: "Tecnología",
+      type: "complement",
+      energy: "high",
+      duration: 60,
+    },
+    {
+      name: "Pedagogía",
+      category: "Aprendizaje",
+      subcategory: "Formación",
+      type: "complement",
+      energy: "mid",
+      duration: 40,
+    },
+    {
+      name: "Psicología",
+      category: "Aprendizaje",
+      subcategory: "Humano",
+      type: "complement",
+      energy: "mid",
+      duration: 35,
+    },
+    {
+      name: "Tejer",
+      category: "Aprendizaje",
+      subcategory: "Manual",
+      type: "complement",
+      energy: "low",
+      duration: 40,
+    },
+    {
+      name: "Pepitas",
+      category: "Aprendizaje",
+      subcategory: "Curiosidad",
+      type: "complement",
+      energy: "low",
+      duration: 20,
+    },
 
-  // Educación (complementario por defecto según tu lista)
-  { name: "Arte", category: "Educación", subcategory: "Arte", type: "complement" },
-  { name: "Música", category: "Educación", subcategory: "Música", type: "daily" },
-  { name: "Dibujo", category: "Educación", subcategory: "Dibujo", type: "complement" },
-  { name: "Animación", category: "Educación", subcategory: "Animación", type: "complement" },
-  { name: "Tejer", category: "Educación", subcategory: "Tejer", type: "complement" },
-  { name: "Pepitas", category: "Educación", subcategory: "Pepitas", type: "complement" },
-  { name: "Pedagogía", category: "Educación", subcategory: "Pedagogía", type: "complement" },
-  { name: "Administración", category: "Educación", subcategory: "Administración", type: "complement" },
-  { name: "Idiomas", category: "Educación", subcategory: "Idiomas", type: "complement" },
-  { name: "Francés", category: "Educación", subcategory: "Francés", type: "complement" },
-  { name: "Inglés", category: "Educación", subcategory: "Inglés", type: "complement" },
-  { name: "Italiano", category: "Educación", subcategory: "Italiano", type: "complement" },
-  { name: "Programación", category: "Educación", subcategory: "Programación", type: "complement" },
-  { name: "Psicología", category: "Educación", subcategory: "Psicología", type: "complement" },
+    /* ======================================================
+       IDIOMAS
+    ====================================================== */
+    {
+      name: "Idiomas",
+      category: "Idiomas",
+      subcategory: "General",
+      type: "complement",
+      energy: "mid",
+      duration: 30,
+    },
+    {
+      name: "Francés",
+      category: "Idiomas",
+      subcategory: "Francés",
+      type: "complement",
+      energy: "mid",
+      duration: 30,
+    },
+    {
+      name: "Inglés",
+      category: "Idiomas",
+      subcategory: "Inglés",
+      type: "complement",
+      energy: "mid",
+      duration: 30,
+    },
+    {
+      name: "Italiano",
+      category: "Idiomas",
+      subcategory: "Italiano",
+      type: "complement",
+      energy: "mid",
+      duration: 30,
+    },
 
-  // Salud
-  { name: "Deporte", category: "Salud", subcategory: "Deporte", type: "complement" },
-  { name: "Patinar", category: "Salud", subcategory: "Patinar", type: "complement" },
-  { name: "Meditación", category: "Salud", subcategory: "Meditación", type: "complement" },
-  { name: "Citas médicas", category: "Salud", subcategory: "Citas médicas", type: "complement" },
+    /* ======================================================
+       SALUD / CUERPO / CUIDADO
+    ====================================================== */
+    {
+      name: "Deporte",
+      category: "Salud",
+      subcategory: "Movimiento",
+      type: "complement",
+      energy: "high",
+      duration: 45,
+    },
+    {
+      name: "Patinar",
+      category: "Salud",
+      subcategory: "Movimiento",
+      type: "complement",
+      energy: "high",
+      duration: 50,
+    },
+    {
+      name: "Meditación",
+      category: "Salud",
+      subcategory: "Mental",
+      type: "complement",
+      energy: "low",
+      duration: 15,
+    },
+    {
+      name: "Citas médicas",
+      category: "Salud",
+      subcategory: "Cuidado",
+      type: "complement",
+      energy: "mid",
+      duration: 60,
+    },
 
-  // Alimentación
-  { name: "Alimentación: Desayuno", category: "Alimentación", subcategory: "Desayuno", type: "complement" },
-  { name: "Alimentación: Almuerzo", category: "Alimentación", subcategory: "Almuerzo", type: "complement" },
-  { name: "Comida", category: "Alimentación", subcategory: "Comida", type: "complement" },
+    /* ======================================================
+       ALIMENTACIÓN
+    ====================================================== */
+    {
+      name: "Desayuno consciente",
+      category: "Alimentación",
+      subcategory: "Desayuno",
+      type: "daily",
+      energy: "low",
+      duration: 20,
+    },
+    {
+      name: "Almuerzo consciente",
+      category: "Alimentación",
+      subcategory: "Almuerzo",
+      type: "daily",
+      energy: "low",
+      duration: 30,
+    },
+    {
+      name: "Comida / Cena",
+      category: "Alimentación",
+      subcategory: "Cena",
+      type: "daily",
+      energy: "low",
+      duration: 25,
+    },
 
-  // Hogar
-  { name: "Limpieza", category: "Hogar", subcategory: "Limpieza", type: "complement" },
-  { name: "Organización", category: "Hogar", subcategory: "Organización", type: "complement" },
-  { name: "Compartir", category: "Hogar", subcategory: "Compartir", type: "complement" },
-  { name: "Planeación", category: "Hogar", subcategory: "Planeación", type: "complement" },
-  { name: "Finanzas", category: "Hogar", subcategory: "Finanzas", type: "complement" },
+    /* ======================================================
+       HOGAR / VIDA PRÁCTICA
+    ====================================================== */
+    {
+      name: "Limpieza",
+      category: "Hogar",
+      subcategory: "Orden",
+      type: "complement",
+      energy: "mid",
+      duration: 30,
+    },
+    {
+      name: "Organización",
+      category: "Hogar",
+      subcategory: "Orden",
+      type: "complement",
+      energy: "mid",
+      duration: 25,
+    },
+    {
+      name: "Transporte",
+      category: "Hogar",
+      subcategory: "Movilidad",
+      type: "complement",
+      energy: "mid",
+      duration: 30,
+    },
 
-  // Dispersión / descanso / sentimental / transporte / mascotas
-  { name: "Dispersión", category: "Dispersión", subcategory: "Dispersión", type: "complement" },
-  { name: "Descanso", category: "Descanso", subcategory: "Descanso", type: "complement" },
-  { name: "B'shert", category: "Sentimental", subcategory: "B'shert", type: "complement" },
-  { name: "Transporte", category: "Transporte", subcategory: "Transporte", type: "complement" },
-  { name: "Mascotas", category: "Mascotas", subcategory: "Mascotas", type: "complement" },
+    /* ======================================================
+       VÍNCULO / AFECTO / VIDA COMPARTIDA
+    ====================================================== */
+    {
+      name: "Compartir",
+      category: "Relación",
+      subcategory: "Tiempo juntos",
+      type: "daily",
+      energy: "low",
+      duration: 30,
+    },
+    {
+      name: "B'shert",
+      category: "Relación",
+      subcategory: "Afecto",
+      type: "complement",
+      energy: "low",
+      duration: 20,
+    },
 
-  // Tiempo de error (diario según tu lista)
-  { name: "Tiempo de error", category: "Tiempo de error", subcategory: "Tiempo de error", type: "daily" },
-];
+    /* ======================================================
+       DESCANSO / DISFRUTE
+    ====================================================== */
+    {
+      name: "Videojuegos",
+      category: "Disfrute",
+      subcategory: "Videojuegos",
+      type: "daily",
+      energy: "low",
+      duration: 45,
+    },
+    {
+      name: "Juegos de mesa",
+      category: "Disfrute",
+      subcategory: "Juegos de mesa",
+      type: "complement",
+      energy: "low",
+      duration: 60,
+    },
+    {
+      name: "Lectura",
+      category: "Disfrute",
+      subcategory: "Lectura",
+      type: "daily",
+      energy: "low",
+      duration: 25,
+    },
+    {
+      name: "Escritura",
+      category: "Disfrute",
+      subcategory: "Escritura",
+      type: "complement",
+      energy: "mid",
+      duration: 30,
+    },
+    {
+      name: "Series / Películas",
+      category: "Disfrute",
+      subcategory: "Audiovisual",
+      type: "complement",
+      energy: "low",
+      duration: 60,
+    },
+    {
+      name: "Dispersión",
+      category: "Disfrute",
+      subcategory: "Recreación",
+      type: "complement",
+      energy: "low",
+      duration: 30,
+    },
+    {
+      name: "Descanso",
+      category: "Descanso",
+      subcategory: "Recuperación",
+      type: "daily",
+      energy: "low",
+      duration: 20,
+    },
+
+    /* ======================================================
+       CUIDADO / OTROS SERES
+    ====================================================== */
+    {
+      name: "Mascotas",
+      category: "Cuidado",
+      subcategory: "Mascotas",
+      type: "daily",
+      energy: "low",
+      duration: 20,
+    },
+
+    /* ======================================================
+       META / REGISTRO ESPECIAL
+    ====================================================== */
+    {
+      name: "Tiempo de error",
+      category: "Registro",
+      subcategory: "Tiempo de error",
+      type: "daily",
+      energy: "low",
+      duration: 10,
+    },
+  ];
+
+  // Nombre nuevo principal
+  window.BITACORA_SEED = seed;
+
+  // Alias de compatibilidad con versiones viejas del app.js
+  window.RITUAL_SEED = seed;
+})();
