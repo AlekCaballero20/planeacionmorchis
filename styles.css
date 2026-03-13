@@ -1728,3 +1728,244 @@ button:focus-visible,
     scroll-behavior:auto !important;
   }
 }
+/* ============================================================
+   PERFIL TOGGLE (Alek / Cata)
+   ============================================================ */
+.profileToggle{
+  display:flex;
+  border:1px solid rgba(34,48,74,.88);
+  border-radius:999px;
+  overflow:hidden;
+  background:rgba(8,12,22,.52);
+  flex:0 0 auto;
+  box-shadow:0 2px 8px rgba(0,0,0,.22);
+}
+
+.profileBtn{
+  min-height:36px;
+  padding:6px 18px;
+  border:none;
+  background:transparent;
+  color:var(--muted);
+  font-weight:950;
+  font-size:13px;
+  cursor:pointer;
+  transition:
+    background var(--tMed) ease,
+    color var(--tMed) ease;
+  user-select:none;
+  white-space:nowrap;
+  -webkit-tap-highlight-color:transparent;
+}
+
+.profileBtn:hover{
+  background:rgba(124,58,237,.14);
+  color:var(--text);
+}
+
+.profileBtn.isActive{
+  background:linear-gradient(135deg, rgba(124,58,237,.38), rgba(34,197,94,.22));
+  color:var(--text);
+}
+
+@media (max-width:720px){
+  .topbar{ align-items:stretch; }
+  .profileToggle{ align-self:center; }
+}
+
+/* ============================================================
+   TAG DECORATORS  (time / no-time)
+   ============================================================ */
+.tagTime{
+  border-color:rgba(34,197,94,.50);
+  background:rgba(34,197,94,.10);
+  color:rgba(34,197,94,.95);
+}
+.tagNoTime{
+  color:var(--muted2);
+  border-color:rgba(34,48,74,.55);
+  background:transparent;
+}
+
+/* ============================================================
+   AGENDA – CALENDARIO MENSUAL
+   ============================================================ */
+.agendaCal{
+  display:grid;
+  grid-template-columns:repeat(7, 1fr);
+  gap:5px;
+}
+
+.calDayHeader{
+  text-align:center;
+  font-size:11px;
+  font-weight:950;
+  color:var(--muted);
+  padding:4px 2px;
+  letter-spacing:.3px;
+}
+
+.calCell{
+  aspect-ratio:1 / 1.05;
+  min-height:44px;
+  border-radius:12px;
+  border:1px solid rgba(34,48,74,.60);
+  background:rgba(17,28,51,.28);
+  cursor:pointer;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+  padding:3px;
+  transition:
+    background var(--tMed) ease,
+    border-color var(--tMed) ease,
+    transform var(--tFast) ease,
+    box-shadow var(--tMed) ease;
+  user-select:none;
+  outline:none;
+  position:relative;
+}
+
+.calCell:hover{
+  background:rgba(17,28,51,.60);
+  border-color:rgba(42,58,93,.95);
+  box-shadow:0 4px 14px rgba(0,0,0,.15);
+}
+
+.calCell:active{
+  transform:scale(.97);
+}
+
+.calCell:focus-visible{
+  box-shadow:var(--focus);
+  border-color:rgba(124,58,237,.65);
+}
+
+.calCell.empty{
+  border:none;
+  background:transparent;
+  cursor:default;
+  pointer-events:none;
+}
+
+/* Heat levels */
+.calCell.lv1{ background:rgba(124,58,237,.11); border-color:rgba(124,58,237,.22); }
+.calCell.lv2{ background:rgba(124,58,237,.26); border-color:rgba(124,58,237,.40); }
+.calCell.lv3{ background:rgba(124,58,237,.48); border-color:rgba(124,58,237,.62); }
+.calCell.lv4{ background:linear-gradient(135deg,rgba(124,58,237,.68),rgba(34,197,94,.42)); border-color:rgba(34,197,94,.55); }
+
+.calCell.isToday{
+  border-color:rgba(34,197,94,.75) !important;
+  box-shadow:0 0 0 2px rgba(34,197,94,.18);
+}
+
+.calCell.selected{
+  border-color:rgba(34,197,94,.90) !important;
+  box-shadow:0 0 0 3px rgba(34,197,94,.25);
+}
+
+.calDay{
+  font-weight:950;
+  font-size:14px;
+  line-height:1;
+}
+
+.calPct{
+  font-size:10px;
+  color:rgba(229,231,235,.80);
+  line-height:1;
+}
+
+.calDur{
+  font-size:9px;
+  color:rgba(34,197,94,.82);
+  line-height:1;
+}
+
+@media (max-width:560px){
+  .agendaCal{ gap:3px; }
+  .calCell{
+    min-height:38px;
+    border-radius:8px;
+  }
+  .calDay{ font-size:12px; }
+  .calDur{ display:none; }
+}
+
+/* ============================================================
+   AGENDA – DÍA DETALLE / HORARIO
+   ============================================================ */
+.agendaDayHeader{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-bottom:12px;
+}
+
+.scheduleList{
+  display:grid;
+  gap:8px;
+}
+
+.scheduleItem{
+  display:flex;
+  gap:12px;
+  align-items:stretch;
+  padding:10px;
+  border-radius:14px;
+  border:1px solid rgba(34,48,74,.70);
+  background:rgba(17,28,51,.32);
+  transition:
+    background var(--tMed) ease,
+    border-color var(--tMed) ease;
+  min-width:0;
+}
+
+.scheduleItem:hover{
+  background:rgba(17,28,51,.55);
+  border-color:rgba(42,58,93,.90);
+}
+
+.scheduleBar{
+  width:5px;
+  min-height:24px;
+  border-radius:4px;
+  background:linear-gradient(to bottom, rgba(124,58,237,.90), rgba(34,197,94,.65));
+  flex:0 0 auto;
+  transition:height var(--tSlow) ease;
+}
+
+.scheduleInfo{
+  flex:1;
+  min-width:0;
+}
+
+.scheduleName{
+  font-weight:950;
+  font-size:14px;
+  line-height:1.2;
+  overflow-wrap:anywhere;
+}
+
+.scheduleMeta{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  margin-top:5px;
+}
+
+.agendaNote{
+  padding:10px 12px;
+  border-radius:14px;
+  border:1px solid rgba(34,48,74,.65);
+  background:rgba(17,28,51,.28);
+}
+
+@media (max-width:560px){
+  .scheduleItem{ padding:10px 8px; }
+  .scheduleBar{ width:4px; }
+}
