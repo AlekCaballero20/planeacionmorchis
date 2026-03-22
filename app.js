@@ -1,21 +1,16 @@
 /* app.js
-   Bitácora - Alek & Cata (v5)
+   Bitácora - Alek & Cata (v6)
    ------------------------------------------------------------
-   ✅ Perfiles separados: Alek / Cata (toggle en topbar)
-   ✅ Agenda: calendario mensual + detalle del día con horario real
-   ✅ Duración por entrada: se registra al hacer check (opcional)
-   ✅ Día siempre comienza en hoy al cargar
-   ✅ Exportar movido a Ajustes
-   ✅ Diarias: check por día por perfil
-   ✅ Complementarias: rotación semanal por perfil
-   ✅ Hoy: pendientes + hechas + filtros + chips
-   ✅ Semana: % por día y por categoría
-   ✅ Histórico: resumen, tendencia, heatmap, timeline, destacados
-   ✅ Estadísticas: consistencia, top/olvidadas, narrativa, categorías
-   ✅ Manage: agregar/editar/borrar + búsqueda + filtro tipo
-   ✅ Backup: export/import JSON
-   ✅ Export CSV útil
-   ✅ Energía por actividad
+   ✅ Perfiles separados: Alek / Cata
+   ✅ Día siempre inicia en hoy
+   ✅ Agenda: calendario + detalle + horario construido
+   ✅ Duraciones en bloques de 30 min
+   ✅ Sin tiempo predeterminado por actividad
+   ✅ Exportar JSON en topbar
+   ✅ Importar / Exportar CSV
+   ✅ Diarias por día
+   ✅ Complementarias por semana
+   ✅ Hoy / Semana / Histórico / Estadísticas / Manage / Ajustes
    ✅ Toast + modal
    ✅ Tabs accesibles
 */
@@ -26,15 +21,18 @@
   /* =========================================================
      Storage / constants
   ========================================================= */
-  const LS_KEY    = "bitacora_v5_db";
-  const LS_STATE  = "bitacora_v5_state";
-  const DB_SCHEMA = 5;
+  const LS_KEY = "bitacora_v6_db";
+  const LS_STATE = "bitacora_v6_state";
+  const DB_SCHEMA = 6;
 
   const PROFILES = ["alek", "cata"];
+  const DURATION_STEP = 30;
+  const DAY_START_HOUR = 6;
+  const DAY_START_MINUTE = 0;
 
-  const dayNames        = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
-  const monthNamesShort = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
-  const monthNamesFull  = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+  const monthNamesShort = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  const monthNamesFull = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
   /* =========================================================
      DOM helpers
@@ -42,120 +40,125 @@
   const $ = (sel, scope = document) => scope?.querySelector?.(sel) || null;
   const $$ = (sel, scope = document) => Array.from(scope?.querySelectorAll?.(sel) || []);
 
-  function on(el, evt, fn, opts) { if (!el) return; el.addEventListener(evt, fn, opts); }
+  function on(el, evt, fn, opts) {
+    if (!el) return;
+    el.addEventListener(evt, fn, opts);
+  }
 
   /* =========================================================
      Elements
   ========================================================= */
   const els = {
-    toastRegion:    $("#toastRegion"),
-    modalOverlay:   $("#modalOverlay"),
-    modalClose:     $("#modalClose"),
-    modalTitle:     $("#modalTitle"),
-    modalDesc:      $("#modalDesc"),
-    modalContent:   $("#modalContent"),
-    modalActions:   $("#modalActions"),
-    appInfo:        $("#appInfo"),
+    toastRegion: $("#toastRegion"),
+    modalOverlay: $("#modalOverlay"),
+    modalClose: $("#modalClose"),
+    modalTitle: $("#modalTitle"),
+    modalDesc: $("#modalDesc"),
+    modalContent: $("#modalContent"),
+    modalActions: $("#modalActions"),
+    appInfo: $("#appInfo"),
 
-    dateTitle:      $("#dateTitle"),
-    kpiDaily:       $("#kpiDaily"),
-    kpiDailyHelp:   $("#kpiDailyHelp"),
-    kpiCount:       $("#kpiCount"),
-    kpiError:       $("#kpiError"),
-    balancePill:    $("#balancePill"),
+    dateTitle: $("#dateTitle"),
+    kpiDaily: $("#kpiDaily"),
+    kpiDailyHelp: $("#kpiDailyHelp"),
+    kpiCount: $("#kpiCount"),
+    kpiError: $("#kpiError"),
+    balancePill: $("#balancePill"),
+    selectedDayMeta: $("#selectedDayMeta"),
 
-    search:         $("#search"),
+    search: $("#search"),
     categoryFilter: $("#categoryFilter"),
-    modeFilter:     $("#modeFilter"),
-    energyFilter:   $("#energyFilter"),
-    chipPending:    $("#chipPending"),
-    chipShowDone:   $("#chipShowDone"),
-    btnResetFilters:$("#btnResetFilters"),
-    btnCollapseDone:$("#btnCollapseDone"),
+    modeFilter: $("#modeFilter"),
+    energyFilter: $("#energyFilter"),
+    chipPending: $("#chipPending"),
+    chipShowDone: $("#chipShowDone"),
+    btnResetFilters: $("#btnResetFilters"),
+    btnCollapseDone: $("#btnCollapseDone"),
 
-    dayNotes:       $("#dayNotes"),
-    noteSaved:      $("#noteSaved"),
+    dayNotes: $("#dayNotes"),
+    noteSaved: $("#noteSaved"),
 
-    btnToday:       $("#btnToday"),
-    btnAgenda:      $("#btnAgenda"),
-    btnWeek:        $("#btnWeek"),
-    btnHistory:     $("#btnHistory"),
-    btnStats:       $("#btnStats"),
-    btnManage:      $("#btnManage"),
-    btnSettings:    $("#btnSettings"),
+    btnToday: $("#btnToday"),
+    btnAgenda: $("#btnAgenda"),
+    btnWeek: $("#btnWeek"),
+    btnHistory: $("#btnHistory"),
+    btnStats: $("#btnStats"),
+    btnManage: $("#btnManage"),
+    btnSettings: $("#btnSettings"),
 
-    viewToday:      $("#viewToday"),
-    viewAgenda:     $("#viewAgenda"),
-    viewWeek:       $("#viewWeek"),
-    viewHistory:    $("#viewHistory"),
-    viewStats:      $("#viewStats"),
-    viewManage:     $("#viewManage"),
-    viewSettings:   $("#viewSettings"),
+    viewToday: $("#viewToday"),
+    viewAgenda: $("#viewAgenda"),
+    viewWeek: $("#viewWeek"),
+    viewHistory: $("#viewHistory"),
+    viewStats: $("#viewStats"),
+    viewManage: $("#viewManage"),
+    viewSettings: $("#viewSettings"),
 
-    prevDay:        $("#prevDay"),
-    nextDay:        $("#nextDay"),
+    prevDay: $("#prevDay"),
+    nextDay: $("#nextDay"),
 
-    todaySub:       $("#todaySub"),
-    pendingList:    $("#pendingList"),
-    doneList:       $("#doneList"),
-    pendingCount:   $("#pendingCount"),
-    doneCount:      $("#doneCount"),
-    doneBucket:     $("#doneBucket"),
-    btnCheckAll:    $("#btnCheckAll"),
-    btnUncheckAll:  $("#btnUncheckAll"),
+    todaySub: $("#todaySub"),
+    pendingList: $("#pendingList"),
+    doneList: $("#doneList"),
+    pendingCount: $("#pendingCount"),
+    doneCount: $("#doneCount"),
+    doneBucket: $("#doneBucket"),
+    btnCheckAll: $("#btnCheckAll"),
+    btnUncheckAll: $("#btnUncheckAll"),
 
     agendaMonthLabel: $("#agendaMonthLabel"),
-    agendaCalendar:   $("#agendaCalendar"),
-    agendaDayDetail:  $("#agendaDayDetail"),
-    prevMonth:        $("#prevMonth"),
-    nextMonth:        $("#nextMonth"),
+    agendaCalendar: $("#agendaCalendar"),
+    agendaDayDetail: $("#agendaDayDetail"),
+    agendaSchedule: $("#agendaSchedule"),
+    prevMonth: $("#prevMonth"),
+    nextMonth: $("#nextMonth"),
 
-    prevWeek:       $("#prevWeek"),
-    nextWeek:       $("#nextWeek"),
-    weekGrid:       $("#weekGrid"),
-    weekByDay:      $("#weekByDay"),
+    prevWeek: $("#prevWeek"),
+    nextWeek: $("#nextWeek"),
+    weekGrid: $("#weekGrid"),
+    weekByDay: $("#weekByDay"),
     weekByCategory: $("#weekByCategory"),
-    weekSub:        $("#weekSub"),
-    weekInsight:    $("#weekInsight"),
+    weekSub: $("#weekSub"),
+    weekInsight: $("#weekInsight"),
 
-    historyRange:         $("#historyRange"),
-    historySummary:       $("#historySummary"),
-    chartHistoryTrend:    $("#chartHistoryTrend"),
-    historyTrendHint:     $("#historyTrendHint"),
-    historyCalendar:      $("#historyCalendar"),
-    historyHighlights:    $("#historyHighlights"),
-    historyTimeline:      $("#historyTimeline"),
+    historyRange: $("#historyRange"),
+    historySummary: $("#historySummary"),
+    chartHistoryTrend: $("#chartHistoryTrend"),
+    historyTrendHint: $("#historyTrendHint"),
+    historyCalendar: $("#historyCalendar"),
+    historyHighlights: $("#historyHighlights"),
+    historyTimeline: $("#historyTimeline"),
     historyTopActivities: $("#historyTopActivities"),
 
-    statsRange:       $("#statsRange"),
+    statsRange: $("#statsRange"),
     statsConsistency: $("#statsConsistency"),
-    chartDone:        $("#chartDone"),
-    statsByCategory:  $("#statsByCategory"),
-    chartBalance:     $("#chartBalance"),
+    chartDone: $("#chartDone"),
+    statsByCategory: $("#statsByCategory"),
+    chartBalance: $("#chartBalance"),
     chartBalanceHint: $("#chartBalanceHint"),
-    chartEnergy:      $("#chartEnergy"),
-    chartEnergyHint:  $("#chartEnergyHint"),
-    statsAvoided:     $("#statsAvoided"),
-    statsTopActivities:$("#statsTopActivities"),
-    statsNarrative:   $("#statsNarrative"),
+    chartEnergy: $("#chartEnergy"),
+    chartEnergyHint: $("#chartEnergyHint"),
+    statsAvoided: $("#statsAvoided"),
+    statsTopActivities: $("#statsTopActivities"),
+    statsNarrative: $("#statsNarrative"),
 
-    btnAdd:          $("#btnAdd"),
-    manageForm:      $("#manageForm"),
-    mName:           $("#mName"),
-    mCategory:       $("#mCategory"),
-    mType:           $("#mType"),
-    mSub:            $("#mSub"),
-    mEnergy:         $("#mEnergy"),
-    btnCancelEdit:   $("#btnCancelEdit"),
+    btnAdd: $("#btnAdd"),
+    manageForm: $("#manageForm"),
+    mName: $("#mName"),
+    mCategory: $("#mCategory"),
+    mType: $("#mType"),
+    mSub: $("#mSub"),
+    mEnergy: $("#mEnergy"),
+    btnCancelEdit: $("#btnCancelEdit"),
     btnSaveActivity: $("#btnSaveActivity"),
-    manageList:      $("#manageList"),
-    manageSearch:    $("#manageSearch"),
-    manageFilterType:$("#manageFilterType"),
+    manageList: $("#manageList"),
+    manageSearch: $("#manageSearch"),
+    manageFilterType: $("#manageFilterType"),
 
-    btnExport2:    $("#btnExport2"),
-    importFile2:   $("#importFile2"),
+    btnExport2: $("#btnExport2"),
+    importFile2: $("#importFile2"),
     btnExportCSV2: $("#btnExportCSV2"),
-    btnWipeAll:    $("#btnWipeAll"),
+    btnWipeAll: $("#btnWipeAll"),
 
     btnProfileAlek: $("#btnProfileAlek"),
     btnProfileCata: $("#btnProfileCata"),
@@ -164,9 +167,18 @@
   /* =========================================================
      Generic utils
   ========================================================= */
-  function uid() { return Math.random().toString(16).slice(2) + Date.now().toString(16); }
-  function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
-  function safeNumber(v, fallback = 0) { const n = Number(v); return Number.isFinite(n) ? n : fallback; }
+  function uid() {
+    return Math.random().toString(16).slice(2) + Date.now().toString(16);
+  }
+
+  function clamp(n, min, max) {
+    return Math.max(min, Math.min(max, n));
+  }
+
+  function safeNumber(v, fallback = 0) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  }
 
   function todayISO(d = new Date()) {
     const x = new Date(d);
@@ -174,7 +186,9 @@
     return x.toISOString().slice(0, 10);
   }
 
-  function isoToDate(iso) { return new Date(`${iso}T00:00:00`); }
+  function isoToDate(iso) {
+    return new Date(`${iso}T00:00:00`);
+  }
 
   function addDays(iso, delta) {
     const d = isoToDate(iso);
@@ -194,7 +208,12 @@
   }
 
   function fmtDateLong(iso) {
-    return isoToDate(iso).toLocaleDateString("es-CO", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+    return isoToDate(iso).toLocaleDateString("es-CO", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
   }
 
   function fmtDateShort(iso) {
@@ -203,15 +222,35 @@
   }
 
   function escapeHTML(s) {
-    return String(s ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[ch]));
+    return String(s ?? "").replace(/[&<>"']/g, ch => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;",
+    }[ch]));
   }
 
   function csvEscape(v) {
     const s = String(v ?? "");
-    return /[,"\n;]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+    return /[,"\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   }
 
-  function fmtPct01(v) { return `${Math.round((v || 0) * 100)}%`; }
+  function fmtPct01(v) {
+    return `${Math.round((v || 0) * 100)}%`;
+  }
+
+  function roundToStep(mins, step = DURATION_STEP) {
+    const n = safeNumber(mins, 0);
+    if (n <= 0) return 0;
+    return Math.round(n / step) * step;
+  }
+
+  function ensureStep(mins, step = DURATION_STEP) {
+    const n = safeNumber(mins, 0);
+    if (n <= 0) return 0;
+    return Math.max(step, roundToStep(n, step));
+  }
 
   function fmtDurationMin(mins) {
     const n = safeNumber(mins, 0);
@@ -223,16 +262,38 @@
   }
 
   function energyLabel(v) {
-    if (v === "low")  return "Energía baja";
-    if (v === "mid")  return "Energía media";
+    if (v === "low") return "Energía baja";
+    if (v === "mid") return "Energía media";
     if (v === "high") return "Energía alta";
     return "Sin energía";
   }
 
-  function unique(arr) { return [...new Set(arr)]; }
-  function sum(arr) { return arr.reduce((acc, x) => acc + x, 0); }
-  function avg(arr) { return arr.length ? sum(arr) / arr.length : 0; }
-  function sortByLocale(a, b) { return String(a).localeCompare(String(b), "es"); }
+  function unique(arr) {
+    return [...new Set(arr)];
+  }
+
+  function sum(arr) {
+    return arr.reduce((acc, x) => acc + x, 0);
+  }
+
+  function avg(arr) {
+    return arr.length ? sum(arr) / arr.length : 0;
+  }
+
+  function sortByLocale(a, b) {
+    return String(a).localeCompare(String(b), "es");
+  }
+
+  function toClock(totalMinutes) {
+    const mins = safeNumber(totalMinutes, 0);
+    const hh = Math.floor(mins / 60).toString().padStart(2, "0");
+    const mm = (mins % 60).toString().padStart(2, "0");
+    return `${hh}:${mm}`;
+  }
+
+  function dayBaseMinutes() {
+    return DAY_START_HOUR * 60 + DAY_START_MINUTE;
+  }
 
   /* =========================================================
      Toast
@@ -242,15 +303,26 @@
   function toast(msg, type = "info") {
     if (!els.toastRegion) return;
     clearTimeout(toastTimer);
-    const cls = type === "ok" ? "toastOk" : type === "warn" ? "toastWarn" : type === "err" ? "toastErr" : "";
+    const cls =
+      type === "ok" ? "toastOk" :
+      type === "warn" ? "toastWarn" :
+      type === "err" ? "toastErr" : "";
+
     els.toastRegion.innerHTML = `
       <div class="toast ${cls}" role="status">
         <div>
-          <div class="toastTitle">${escapeHTML(type === "ok" ? "Listo" : type === "warn" ? "Ojo" : type === "err" ? "Ups" : "Aviso")}</div>
+          <div class="toastTitle">${escapeHTML(
+            type === "ok" ? "Listo" :
+            type === "warn" ? "Ojo" :
+            type === "err" ? "Ups" : "Aviso"
+          )}</div>
           <div class="toastMsg">${escapeHTML(msg)}</div>
         </div>
-      </div>`;
-    toastTimer = setTimeout(() => { if (els.toastRegion) els.toastRegion.innerHTML = ""; }, 2600);
+      </div>
+    `;
+    toastTimer = setTimeout(() => {
+      if (els.toastRegion) els.toastRegion.innerHTML = "";
+    }, 2600);
   }
 
   /* =========================================================
@@ -258,15 +330,17 @@
   ========================================================= */
   function modalOpen({ title = "Modal", desc = "", contentHTML = "", actions = [] } = {}) {
     if (!els.modalOverlay) return;
-    if (els.modalTitle)   els.modalTitle.textContent = title;
-    if (els.modalDesc)    els.modalDesc.textContent  = desc;
-    if (els.modalContent) els.modalContent.innerHTML  = contentHTML;
+
+    if (els.modalTitle) els.modalTitle.textContent = title;
+    if (els.modalDesc) els.modalDesc.textContent = desc;
+    if (els.modalContent) els.modalContent.innerHTML = contentHTML;
 
     if (els.modalActions) {
       els.modalActions.innerHTML = actions.map((a, i) => {
         const cls = a.kind === "danger" ? "btn danger" : a.kind === "ghost" ? "btn ghost" : "btn";
         return `<button class="${cls}" data-modal-action="${i}" type="button">${escapeHTML(a.label || "OK")}</button>`;
       }).join("");
+
       $$("[data-modal-action]", els.modalActions).forEach(btn => {
         on(btn, "click", () => {
           const fn = actions?.[Number(btn.dataset.modalAction)]?.onClick;
@@ -287,16 +361,20 @@
     document.body.style.overflow = "";
   }
 
-  on(els.modalClose,   "click", modalClose);
-  on(els.modalOverlay, "click", e => { if (e.target === els.modalOverlay) modalClose(); });
+  on(els.modalClose, "click", modalClose);
+  on(els.modalOverlay, "click", e => {
+    if (e.target === els.modalOverlay) modalClose();
+  });
   on(document, "keydown", e => {
-    if (e.key === "Escape" && els.modalOverlay && !els.modalOverlay.classList.contains("hidden")) modalClose();
+    if (e.key === "Escape" && els.modalOverlay && !els.modalOverlay.classList.contains("hidden")) {
+      modalClose();
+    }
   });
 
   /* =========================================================
-     Data model v5
+     Data model v6
      db = {
-       schemaVersion: 5,
+       schemaVersion: 6,
        activities: [{id,name,category,subcategory,type,energy?}],
        profiles: {
          alek: {
@@ -307,26 +385,26 @@
        }
      }
   ========================================================= */
-
-  function getSeedArray() { return window.BITACORA_SEED || window.RITUAL_SEED || []; }
+  function getSeedArray() {
+    return window.BITACORA_SEED || window.RITUAL_SEED || [];
+  }
 
   function normalizeActivity(a) {
-    const energy = ["low","mid","high"].includes(a?.energy) ? a.energy : undefined;
+    const energy = ["low", "mid", "high"].includes(a?.energy) ? a.energy : undefined;
     return {
-      id:          a?.id || uid(),
-      name:        String(a?.name || "").trim() || "Sin nombre",
-      category:    String(a?.category || "").trim() || "General",
+      id: a?.id || uid(),
+      name: String(a?.name || "").trim() || "Sin nombre",
+      category: String(a?.category || "").trim() || "General",
       subcategory: String(a?.subcategory || "").trim(),
-      type:        a?.type === "daily" ? "daily" : "complement",
+      type: a?.type === "daily" ? "daily" : "complement",
       energy,
-      // duration removed from activity-level — now tracked per log entry
     };
   }
 
   function emptyProfile() {
     return {
-      logs:  {},
-      cycle: { weekStartISO: startOfWeekISO(todayISO()), done: {} }
+      logs: {},
+      cycle: { weekStartISO: startOfWeekISO(todayISO()), done: {} },
     };
   }
 
@@ -344,11 +422,24 @@
   function migrateProfileLogs(logs) {
     Object.keys(logs).forEach(iso => {
       const day = logs[iso];
-      if (!day || typeof day !== "object") { logs[iso] = { checksDaily: {}, notes: "", durations: {} }; return; }
-      if (day.checks && !day.checksDaily) { day.checksDaily = day.checks; delete day.checks; }
+      if (!day || typeof day !== "object") {
+        logs[iso] = { checksDaily: {}, notes: "", durations: {} };
+        return;
+      }
+
+      if (day.checks && !day.checksDaily) {
+        day.checksDaily = day.checks;
+        delete day.checks;
+      }
+
       if (!day.checksDaily || typeof day.checksDaily !== "object") day.checksDaily = {};
       if (typeof day.notes !== "string") day.notes = String(day.notes || "");
       if (!day.durations || typeof day.durations !== "object") day.durations = {};
+
+      Object.keys(day.durations).forEach(id => {
+        day.durations[id] = ensureStep(day.durations[id], DURATION_STEP);
+        if (!day.durations[id]) delete day.durations[id];
+      });
     });
     return logs;
   }
@@ -356,9 +447,8 @@
   function migrateDB(raw) {
     if (!raw || typeof raw !== "object") return seedDB();
 
-    // Migrate from v4: move top-level logs/cycle → profiles.alek
     if (!raw.profiles) {
-      const alekLogs  = raw.logs  || {};
+      const alekLogs = raw.logs || {};
       const alekCycle = raw.cycle || { weekStartISO: startOfWeekISO(todayISO()), done: {} };
       raw.profiles = {
         alek: { logs: alekLogs, cycle: alekCycle },
@@ -368,11 +458,10 @@
       delete raw.cycle;
     }
 
-    // Ensure both profiles exist
     PROFILES.forEach(p => {
       if (!raw.profiles[p] || typeof raw.profiles[p] !== "object") raw.profiles[p] = emptyProfile();
       const prof = raw.profiles[p];
-      if (!prof.logs  || typeof prof.logs  !== "object") prof.logs  = {};
+      if (!prof.logs || typeof prof.logs !== "object") prof.logs = {};
       if (!prof.cycle || typeof prof.cycle !== "object") prof.cycle = { weekStartISO: startOfWeekISO(todayISO()), done: {} };
       if (!prof.cycle.weekStartISO) prof.cycle.weekStartISO = startOfWeekISO(todayISO());
       if (!prof.cycle.done || typeof prof.cycle.done !== "object") prof.cycle.done = {};
@@ -382,14 +471,21 @@
     if (!Array.isArray(raw.activities)) raw.activities = [];
     raw.activities = raw.activities.filter(Boolean).map(normalizeActivity);
     raw.schemaVersion = DB_SCHEMA;
+
     return raw;
   }
 
-  function saveDB()  { localStorage.setItem(LS_KEY, JSON.stringify(db)); }
+  function saveDB() {
+    localStorage.setItem(LS_KEY, JSON.stringify(db));
+  }
 
   function loadDB() {
     const raw = localStorage.getItem(LS_KEY);
-    if (!raw) { const fresh = seedDB(); localStorage.setItem(LS_KEY, JSON.stringify(fresh)); return fresh; }
+    if (!raw) {
+      const fresh = seedDB();
+      localStorage.setItem(LS_KEY, JSON.stringify(fresh));
+      return fresh;
+    }
     try {
       const migrated = migrateDB(JSON.parse(raw));
       localStorage.setItem(LS_KEY, JSON.stringify(migrated));
@@ -404,47 +500,56 @@
   function loadState() {
     const now = new Date();
     const fallback = {
-      view:             "today",
-      dateISO:          todayISO(),   // always today — never restore stale date
-      weekStartISO:     startOfWeekISO(todayISO()),
-      editId:           null,
-      showDone:         true,
-      collapseDone:     false,
-      pendingFirst:     true,
-      profile:          "alek",
-      agendaYear:       now.getFullYear(),
-      agendaMonth:      now.getMonth(),
-      agendaSelectedDay:todayISO(),
+      view: "today",
+      dateISO: todayISO(),
+      weekStartISO: startOfWeekISO(todayISO()),
+      editId: null,
+      showDone: true,
+      collapseDone: false,
+      pendingFirst: true,
+      profile: "alek",
+      agendaYear: now.getFullYear(),
+      agendaMonth: now.getMonth(),
+      agendaSelectedDay: todayISO(),
     };
+
     const raw = localStorage.getItem(LS_STATE);
     if (!raw) return fallback;
+
     try {
       const s = JSON.parse(raw);
+      const today = todayISO();
       return {
-        view:             s.view             || fallback.view,
-        dateISO:          todayISO(),         // ALWAYS reset to today on load
-        weekStartISO:     startOfWeekISO(todayISO()),
-        editId:           s.editId           || null,
-        showDone:         s.showDone         !== false,
-        collapseDone:     s.collapseDone     === true,
-        pendingFirst:     s.pendingFirst     !== false,
-        profile:          PROFILES.includes(s.profile) ? s.profile : "alek",
-        agendaYear:       s.agendaYear       || now.getFullYear(),
-        agendaMonth:      s.agendaMonth      !== undefined ? s.agendaMonth : now.getMonth(),
-        agendaSelectedDay:s.agendaSelectedDay|| todayISO(),
+        view: s.view || fallback.view,
+        dateISO: today,
+        weekStartISO: startOfWeekISO(today),
+        editId: s.editId || null,
+        showDone: s.showDone !== false,
+        collapseDone: s.collapseDone === true,
+        pendingFirst: s.pendingFirst !== false,
+        profile: PROFILES.includes(s.profile) ? s.profile : "alek",
+        agendaYear: s.agendaYear || now.getFullYear(),
+        agendaMonth: s.agendaMonth !== undefined ? s.agendaMonth : now.getMonth(),
+        agendaSelectedDay: today,
       };
-    } catch { return fallback; }
+    } catch {
+      return fallback;
+    }
   }
 
-  function saveState() { localStorage.setItem(LS_STATE, JSON.stringify(state)); }
+  function saveState() {
+    localStorage.setItem(LS_STATE, JSON.stringify(state));
+  }
 
-  let db    = loadDB();
+  let db = loadDB();
   let state = loadState();
 
   /* =========================================================
      Profile helpers
   ========================================================= */
-  function activeProfile() { return state.profile || "alek"; }
+  function activeProfile() {
+    return state.profile || "alek";
+  }
 
   function activeProfileData() {
     const p = activeProfile();
@@ -461,11 +566,11 @@
     const day = pd.logs[iso];
     if (!day.checksDaily || typeof day.checksDaily !== "object") day.checksDaily = {};
     if (typeof day.notes !== "string") day.notes = String(day.notes || "");
-    if (!day.durations   || typeof day.durations  !== "object") day.durations   = {};
+    if (!day.durations || typeof day.durations !== "object") day.durations = {};
   }
 
   function ensureCycleFor(refISO) {
-    const pd   = activeProfileData();
+    const pd = activeProfileData();
     const week = startOfWeekISO(refISO || todayISO());
     if (!pd.cycle) pd.cycle = { weekStartISO: week, done: {} };
     if (!pd.cycle.done || typeof pd.cycle.done !== "object") pd.cycle.done = {};
@@ -477,13 +582,17 @@
     }
   }
 
-  function aById(id) { return db.activities.find(x => x.id === id); }
+  function aById(id) {
+    return db.activities.find(x => x.id === id);
+  }
 
   function allCategories() {
     return unique(db.activities.map(a => a.category).filter(Boolean)).sort(sortByLocale);
   }
 
-  function getChipPressed(el) { return !!el && el.getAttribute("aria-pressed") === "true"; }
+  function getChipPressed(el) {
+    return !!el && el.getAttribute("aria-pressed") === "true";
+  }
 
   function setChipPressed(el, pressed) {
     if (!el) return;
@@ -501,47 +610,59 @@
     ensureDay(iso);
     ensureCycleFor(iso);
     const pd = activeProfileData();
+
     if (activity.type === "daily") {
       if (done) pd.logs[iso].checksDaily[activity.id] = true;
-      else      delete pd.logs[iso].checksDaily[activity.id];
+      else delete pd.logs[iso].checksDaily[activity.id];
     } else {
       if (done) pd.cycle.done[activity.id] = true;
-      else      delete pd.cycle.done[activity.id];
+      else delete pd.cycle.done[activity.id];
     }
+
     saveDB();
   }
 
   function setLoggedDuration(iso, actId, minutes) {
     ensureDay(iso);
     const pd = activeProfileData();
-    if (minutes && minutes > 0) pd.logs[iso].durations[actId] = Math.round(minutes);
+    const normalized = ensureStep(minutes, DURATION_STEP);
+    if (normalized > 0) pd.logs[iso].durations[actId] = normalized;
     else delete pd.logs[iso].durations[actId];
     saveDB();
   }
 
+  function adjustLoggedDuration(iso, actId, delta) {
+    const current = getLoggedDuration(iso, actId);
+    const next = Math.max(0, current + delta);
+    setLoggedDuration(iso, actId, next);
+    return getLoggedDuration(iso, actId);
+  }
+
   function getLoggedDuration(iso, actId) {
     const pd = activeProfileData();
-    return pd.logs[iso]?.durations?.[actId] || 0;
+    return ensureStep(pd.logs[iso]?.durations?.[actId] || 0, DURATION_STEP);
   }
 
   function getFilteredActivities({ forManage = false } = {}) {
-    const q      = ((forManage ? els.manageSearch?.value : els.search?.value) || "").trim().toLowerCase();
-    const cat    = els.categoryFilter?.value || "__all__";
-    const mode   = (forManage ? els.manageFilterType?.value : els.modeFilter?.value) || (forManage ? "__all__" : "all");
+    const q = ((forManage ? els.manageSearch?.value : els.search?.value) || "").trim().toLowerCase();
+    const cat = els.categoryFilter?.value || "__all__";
+    const mode = (forManage ? els.manageFilterType?.value : els.modeFilter?.value) || (forManage ? "__all__" : "all");
     const energy = els.energyFilter?.value || "__all__";
 
     return db.activities
       .filter(a => {
         const hay = `${a.name} ${a.category} ${a.subcategory || ""}`.toLowerCase();
         if (q && !hay.includes(q)) return false;
+
         if (!forManage) {
           if (cat !== "__all__" && a.category !== cat) return false;
-          if (mode === "daily"      && a.type !== "daily")      return false;
+          if (mode === "daily" && a.type !== "daily") return false;
           if (mode === "complement" && a.type !== "complement") return false;
           if (energy !== "__all__" && (a.energy || "__none__") !== energy) return false;
         } else {
           if (mode !== "__all__" && a.type !== mode) return false;
         }
+
         return true;
       })
       .sort((a, b) => {
@@ -553,16 +674,12 @@
 
   function rebuildCategoryFilter() {
     if (!els.categoryFilter) return;
-    const cats    = allCategories();
+    const cats = allCategories();
     const current = els.categoryFilter.value || "__all__";
     els.categoryFilter.innerHTML =
       `<option value="__all__">Todas las categorías</option>` +
       cats.map(c => `<option value="${escapeHTML(c)}">${escapeHTML(c)}</option>`).join("");
     els.categoryFilter.value = cats.includes(current) ? current : "__all__";
-  }
-
-  function getAllLogDatesSortedDesc() {
-    return Object.keys(activeProfileData().logs).sort((a, b) => b.localeCompare(a));
   }
 
   function getDateRangeArray(endISO, rangeDays) {
@@ -571,15 +688,21 @@
   }
 
   function getDayMetrics(iso) {
-    const pd       = activeProfileData();
-    const day      = pd.logs[iso];
+    const pd = activeProfileData();
+    const day = pd.logs[iso];
     const dailyActs = db.activities.filter(a => a.type === "daily");
-    const allActs   = db.activities;
+    const allActs = db.activities;
 
-    let doneDaily = 0, doneAll = 0, visibleCount = 0, totalDurationDone = 0;
+    let doneDaily = 0;
+    let doneAll = 0;
+    let visibleCount = 0;
+    let totalDurationDone = 0;
     const durations = day?.durations || {};
 
-    for (const a of dailyActs) { if (isDoneFor(iso, a)) doneDaily++; }
+    for (const a of dailyActs) {
+      if (isDoneFor(iso, a)) doneDaily++;
+    }
+
     for (const a of allActs) {
       visibleCount++;
       if (isDoneFor(iso, a)) {
@@ -590,104 +713,228 @@
 
     return {
       iso,
-      doneDaily, totalDaily: dailyActs.length,
-      doneAll,   totalAll:   visibleCount,
-      pctDaily:  dailyActs.length ? doneDaily / dailyActs.length : 0,
-      pctAll:    visibleCount     ? doneAll   / visibleCount     : 0,
+      doneDaily,
+      totalDaily: dailyActs.length,
+      doneAll,
+      totalAll: visibleCount,
+      pctDaily: dailyActs.length ? doneDaily / dailyActs.length : 0,
+      pctAll: visibleCount ? doneAll / visibleCount : 0,
       totalDurationDone,
       notes: day?.notes || "",
     };
   }
 
   function computeBalanceForRange(days) {
-    let carga = 0, descanso = 0;
+    let carga = 0;
+    let descanso = 0;
     const doneById = new Map();
+
     for (const iso of days) {
       for (const a of db.activities) {
         if (!isDoneFor(iso, a)) continue;
         doneById.set(a.id, (doneById.get(a.id) || 0) + 1);
       }
     }
+
     for (const a of db.activities) {
       const times = doneById.get(a.id) || 0;
       if (!times) continue;
-      const hay = `${(a.name||"").toLowerCase()} ${(a.category||"").toLowerCase()} ${(a.subcategory||"").toLowerCase()}`;
-      const isRestish = hay.includes("descanso")||hay.includes("medit")||hay.includes("pausa")||hay.includes("respir")||hay.includes("caminar")||hay.includes("jugar")||hay.includes("natur")||hay.includes("compartir")||hay.includes("mascota")||hay.includes("serie")||hay.includes("película");
-      const isWorkish = hay.includes("trabajo")||hay.includes("admin")||hay.includes("program")||hay.includes("pedagog")||hay.includes("música")||hay.includes("dibujo")||hay.includes("arte")||hay.includes("francés")||hay.includes("inglés")||hay.includes("italiano")||hay.includes("finanza")||hay.includes("planea");
+
+      const hay = `${(a.name || "").toLowerCase()} ${(a.category || "").toLowerCase()} ${(a.subcategory || "").toLowerCase()}`;
+      const isRestish =
+        hay.includes("descanso") || hay.includes("medit") || hay.includes("pausa") || hay.includes("respir") ||
+        hay.includes("caminar") || hay.includes("jugar") || hay.includes("natur") || hay.includes("compartir") ||
+        hay.includes("mascota") || hay.includes("serie") || hay.includes("película");
+
+      const isWorkish =
+        hay.includes("trabajo") || hay.includes("admin") || hay.includes("program") || hay.includes("pedagog") ||
+        hay.includes("música") || hay.includes("dibujo") || hay.includes("arte") || hay.includes("francés") ||
+        hay.includes("inglés") || hay.includes("italiano") || hay.includes("finanza") || hay.includes("planea");
+
       let score = 1;
       if (a.energy === "high") score = 1.6;
-      if (a.energy === "mid")  score = 1.15;
-      if (a.energy === "low")  score = 0.8;
+      if (a.energy === "mid") score = 1.15;
+      if (a.energy === "low") score = 0.8;
+
       const w = score * times;
-      if      (isRestish && !isWorkish) descanso += w;
-      else if (isWorkish && !isRestish) carga    += w;
-      else { carga += w * 0.6; descanso += w * 0.4; }
+      if (isRestish && !isWorkish) descanso += w;
+      else if (isWorkish && !isRestish) carga += w;
+      else {
+        carga += w * 0.6;
+        descanso += w * 0.4;
+      }
     }
+
     const total = carga + descanso;
     return { carga, descanso, restRatio: total ? descanso / total : 0.5 };
   }
 
   function computeMetrics({ rangeDays = 30 } = {}) {
     const endISO = todayISO();
-    const days   = getDateRangeArray(endISO, rangeDays);
+    const days = getDateRangeArray(endISO, rangeDays);
     const dailyActs = db.activities.filter(a => a.type === "daily");
-    const cats   = unique(db.activities.map(a => a.category).filter(Boolean)).sort(sortByLocale);
+    const cats = unique(db.activities.map(a => a.category).filter(Boolean)).sort(sortByLocale);
 
     const byDay = days.map(iso => {
       const m = getDayMetrics(iso);
-      return { iso, pctDaily: m.pctDaily, pctAll: m.pctAll, doneDaily: m.doneDaily, totalDaily: m.totalDaily, doneAll: m.doneAll, totalAll: m.totalAll, duration: m.totalDurationDone, notes: m.notes };
+      return {
+        iso,
+        pctDaily: m.pctDaily,
+        pctAll: m.pctAll,
+        doneDaily: m.doneDaily,
+        totalDaily: m.totalDaily,
+        doneAll: m.doneAll,
+        totalAll: m.totalAll,
+        duration: m.totalDurationDone,
+        notes: m.notes,
+      };
     });
 
     const byCategory = cats.map(cat => {
       const acts = db.activities.filter(a => a.category === cat);
-      let done = 0, total = 0;
-      for (const iso of days) { for (const a of acts) { total++; if (isDoneFor(iso, a)) done++; } }
+      let done = 0;
+      let total = 0;
+      for (const iso of days) {
+        for (const a of acts) {
+          total++;
+          if (isDoneFor(iso, a)) done++;
+        }
+      }
       return { cat, done, total, pct: total ? done / total : 0 };
     }).sort((a, b) => b.pct - a.pct);
 
     const topActivities = db.activities.map(a => {
       let done = 0;
-      for (const iso of days) { if (isDoneFor(iso, a)) done++; }
-      return { id: a.id, name: a.name, cat: a.category, type: a.type, done, total: rangeDays, pct: rangeDays ? done / rangeDays : 0 };
+      for (const iso of days) {
+        if (isDoneFor(iso, a)) done++;
+      }
+      return {
+        id: a.id,
+        name: a.name,
+        cat: a.category,
+        type: a.type,
+        done,
+        total: rangeDays,
+        pct: rangeDays ? done / rangeDays : 0,
+      };
     }).sort((a, b) => b.done - a.done || b.pct - a.pct);
 
-    const avoidedActivities = [...topActivities].filter(a => a.done < a.total).sort((a, b) => a.pct - b.pct || a.done - b.done);
+    const avoidedActivities = [...topActivities]
+      .filter(a => a.done < a.total)
+      .sort((a, b) => a.pct - b.pct || a.done - b.done);
+
     const avgDaily = avg(byDay.map(x => x.pctDaily));
-    const avgAll   = avg(byDay.map(x => x.pctAll));
-    const bestDay  = [...byDay].sort((a, b) => b.pctDaily - a.pctDaily || b.doneDaily - a.doneDaily)[0] || null;
+    const avgAll = avg(byDay.map(x => x.pctAll));
+    const bestDay = [...byDay].sort((a, b) => b.pctDaily - a.pctDaily || b.doneDaily - a.doneDaily)[0] || null;
     const worstDay = [...byDay].sort((a, b) => a.pctDaily - b.pctDaily || a.doneDaily - b.doneDaily)[0] || null;
 
-    let streakCurrent = 0, streakBest = 0, working = 0;
-    for (const d of byDay) { if (d.pctDaily >= 0.6) { working++; streakBest = Math.max(streakBest, working); } else working = 0; }
-    for (let i = byDay.length - 1; i >= 0; i--) { if (byDay[i].pctDaily >= 0.6) streakCurrent++; else break; }
+    let streakCurrent = 0;
+    let streakBest = 0;
+    let working = 0;
+
+    for (const d of byDay) {
+      if (d.pctDaily >= 0.6) {
+        working++;
+        streakBest = Math.max(streakBest, working);
+      } else {
+        working = 0;
+      }
+    }
+
+    for (let i = byDay.length - 1; i >= 0; i--) {
+      if (byDay[i].pctDaily >= 0.6) streakCurrent++;
+      else break;
+    }
 
     const activeDays = byDay.filter(d => d.doneAll > 0).length;
-    const emptyDays  = byDay.filter(d => d.doneAll === 0).length;
-    const noteDays   = byDay.filter(d => (d.notes || "").trim()).length;
+    const emptyDays = byDay.filter(d => d.doneAll === 0).length;
+    const noteDays = byDay.filter(d => (d.notes || "").trim()).length;
     const totalDuration = sum(byDay.map(d => d.duration || 0));
+
     const energy = { low: 0, mid: 0, high: 0, none: 0 };
     for (const a of db.activities) {
       if (a.energy === "low") energy.low++;
-      else if (a.energy === "mid")  energy.mid++;
+      else if (a.energy === "mid") energy.mid++;
       else if (a.energy === "high") energy.high++;
       else energy.none++;
     }
+
     const balance = computeBalanceForRange(days);
 
-    return { rangeDays, days, byDay, byCategory, topActivities, avoidedActivities, avgDaily, avgAll, bestDay, worstDay, streakCurrent, streakBest, activeDays, emptyDays, noteDays, totalDuration, dailyCount: dailyActs.length, allCount: db.activities.length, energy, balance };
+    return {
+      rangeDays,
+      days,
+      byDay,
+      byCategory,
+      topActivities,
+      avoidedActivities,
+      avgDaily,
+      avgAll,
+      bestDay,
+      worstDay,
+      streakCurrent,
+      streakBest,
+      activeDays,
+      emptyDays,
+      noteDays,
+      totalDuration,
+      dailyCount: dailyActs.length,
+      allCount: db.activities.length,
+      energy,
+      balance,
+    };
+  }
+
+  function getDoneActsForDay(iso) {
+    const pd = activeProfileData();
+    const dayLog = pd.logs[iso];
+
+    return db.activities.filter(a => {
+      if (a.type === "daily") return !!dayLog?.checksDaily?.[a.id];
+      ensureCycleFor(iso);
+      return !!pd.cycle?.done?.[a.id];
+    });
+  }
+
+  function buildScheduleForDay(iso) {
+    const doneActs = getDoneActsForDay(iso);
+    const entries = doneActs
+      .map(a => ({
+        activity: a,
+        duration: getLoggedDuration(iso, a.id),
+      }))
+      .filter(x => x.duration > 0)
+      .sort((a, b) => {
+        if (b.duration !== a.duration) return b.duration - a.duration;
+        return a.activity.name.localeCompare(b.activity.name, "es");
+      });
+
+    let cursor = dayBaseMinutes();
+    return entries.map(entry => {
+      const start = cursor;
+      const end = cursor + entry.duration;
+      cursor = end;
+      return {
+        ...entry,
+        start,
+        end,
+        startText: toClock(start),
+        endText: toClock(end),
+      };
+    });
   }
 
   /* =========================================================
      View switching / tabs
   ========================================================= */
   const TAB_MAP = {
-    today:   { btn: els.btnToday,    view: els.viewToday    },
-    agenda:  { btn: els.btnAgenda,   view: els.viewAgenda   },
-    week:    { btn: els.btnWeek,     view: els.viewWeek     },
-    history: { btn: els.btnHistory,  view: els.viewHistory  },
-    stats:   { btn: els.btnStats,    view: els.viewStats    },
-    manage:  { btn: els.btnManage,   view: els.viewManage   },
-    settings:{ btn: els.btnSettings, view: els.viewSettings },
+    today: { btn: els.btnToday, view: els.viewToday },
+    agenda: { btn: els.btnAgenda, view: els.viewAgenda },
+    week: { btn: els.btnWeek, view: els.viewWeek },
+    history: { btn: els.btnHistory, view: els.viewHistory },
+    stats: { btn: els.btnStats, view: els.viewStats },
+    manage: { btn: els.btnManage, view: els.viewManage },
+    settings: { btn: els.btnSettings, view: els.viewSettings },
   };
 
   function updateTabsUI(activeView) {
@@ -708,12 +955,13 @@
     state.view = view;
     saveState();
     updateTabsUI(view);
-    if (view === "today")    renderToday();
-    if (view === "agenda")   renderAgenda();
-    if (view === "week")     renderWeek();
-    if (view === "history")  renderHistory();
-    if (view === "stats")    renderStats();
-    if (view === "manage")   renderManage();
+
+    if (view === "today") renderToday();
+    if (view === "agenda") renderAgenda();
+    if (view === "week") renderWeek();
+    if (view === "history") renderHistory();
+    if (view === "stats") renderStats();
+    if (view === "manage") renderManage();
     if (view === "settings") renderSettings();
   }
 
@@ -723,13 +971,13 @@
       on(tab, "keydown", e => {
         if (tab.getAttribute("role") !== "tab") return;
         const key = e.key;
-        if (!["ArrowLeft","ArrowRight","Home","End"].includes(key)) return;
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(key)) return;
         e.preventDefault();
         let next = idx;
-        if (key === "ArrowLeft")  next = (idx - 1 + tabs.length) % tabs.length;
+        if (key === "ArrowLeft") next = (idx - 1 + tabs.length) % tabs.length;
         if (key === "ArrowRight") next = (idx + 1) % tabs.length;
-        if (key === "Home")       next = 0;
-        if (key === "End")        next = tabs.length - 1;
+        if (key === "Home") next = 0;
+        if (key === "End") next = tabs.length - 1;
         tabs[next].focus();
       });
     });
@@ -740,12 +988,32 @@
   ========================================================= */
   function updateProfileToggleUI() {
     const p = activeProfile();
-    els.btnProfileAlek?.classList.toggle("isActive", p === "alek");
-    els.btnProfileCata?.classList.toggle("isActive", p === "cata");
+    if (els.btnProfileAlek) {
+      els.btnProfileAlek.classList.toggle("isActive", p === "alek");
+      els.btnProfileAlek.setAttribute("aria-pressed", String(p === "alek"));
+    }
+    if (els.btnProfileCata) {
+      els.btnProfileCata.classList.toggle("isActive", p === "cata");
+      els.btnProfileCata.setAttribute("aria-pressed", String(p === "cata"));
+    }
+  }
+
+  function setProfile(profile) {
+    if (!PROFILES.includes(profile)) return;
+    state.profile = profile;
+    state.dateISO = todayISO();
+    state.weekStartISO = startOfWeekISO(state.dateISO);
+    state.agendaSelectedDay = state.dateISO;
+    state.agendaYear = isoToDate(state.dateISO).getFullYear();
+    state.agendaMonth = isoToDate(state.dateISO).getMonth();
+    saveState();
+    updateProfileToggleUI();
+    renderCurrentView();
+    renderSidebarDayMeta();
   }
 
   /* =========================================================
-     Notes autosave (profile-aware)
+     Notes autosave
   ========================================================= */
   let notesTimer = null;
 
@@ -764,39 +1032,50 @@
   }
 
   /* =========================================================
-     Duration-at-check modal
+     Duration modal / controls
   ========================================================= */
   function askDuration(activity, iso) {
     modalOpen({
       title: `⏱ ${activity.name}`,
-      desc:  "¿Cuánto tiempo le dedicaste hoy? Esto construye tu horario real.",
+      desc: "¿Cuánto tiempo le dedicaron hoy? Se guarda solo en bloques de 30 min para construir el horario real.",
       contentHTML: `
         <div style="margin-top:8px">
-          <label class="label" for="durationInput">Minutos dedicados (opcional)</label>
-          <input id="durationInput" class="input" type="number" min="1" max="960" step="5"
-                 placeholder="Ej: 30" autofocus style="font-size:18px;text-align:center" />
-          <div class="hint tiny" style="margin-top:8px">Deja en blanco si no quieres registrar el tiempo ahora.</div>
-        </div>`,
+          <label class="label" for="durationInput">Minutos dedicados</label>
+          <input id="durationInput" class="input" type="number" min="${DURATION_STEP}" step="${DURATION_STEP}"
+                 placeholder="Ej: 30, 60, 90" autofocus style="font-size:18px;text-align:center" />
+          <div class="hint tiny" style="margin-top:8px">
+            Se redondea a bloques de ${DURATION_STEP} min. Déjalo en blanco si no quieres registrarlo ahora.
+          </div>
+        </div>
+      `,
       actions: [
-        { label: "Omitir", kind: "ghost", onClick: () => { modalClose(); renderToday(); } },
+        {
+          label: "Omitir",
+          kind: "ghost",
+          onClick: () => {
+            modalClose();
+            renderCurrentView();
+          },
+        },
         {
           label: "Guardar",
           onClick: () => {
             const raw = document.getElementById("durationInput")?.value || "";
             const val = raw.trim() === "" ? 0 : Number(raw);
+
             if (raw.trim() !== "" && (!Number.isFinite(val) || val <= 0)) {
-              toast("Ingresa un número válido en minutos.", "warn");
+              toast("Ingresa un número válido.", "warn");
               return;
             }
+
             if (val > 0) setLoggedDuration(iso, activity.id, val);
             modalClose();
-            renderToday();
-            if (state.view === "agenda") renderAgendaDayDetail();
-          }
+            renderCurrentView();
+          },
         },
       ],
     });
-    // Allow Enter key on input to trigger Guardar
+
     setTimeout(() => {
       const inp = document.getElementById("durationInput");
       if (inp) {
@@ -811,16 +1090,26 @@
   }
 
   /* =========================================================
+     Sidebar helpers
+  ========================================================= */
+  function renderSidebarDayMeta() {
+    if (els.selectedDayMeta) {
+      const prof = activeProfile() === "alek" ? "Alek" : "Cata";
+      els.selectedDayMeta.textContent = `${prof} · ${fmtDateShort(state.dateISO)}`;
+    }
+  }
+
+  /* =========================================================
      Today
   ========================================================= */
   function renderActivityCards(list, iso) {
     if (!list.length) return `<div class="emptyState">Nada por acá. Milagro administrativo, supongo ✅</div>`;
 
     return list.map(a => {
-      const checked    = isDoneFor(iso, a);
-      const typeLabel  = a.type === "daily" ? "Diaria" : "Rotación semanal";
-      const loggedDur  = getLoggedDuration(iso, a.id);
-      const durLabel   = loggedDur ? fmtDurationMin(loggedDur) : null;
+      const checked = isDoneFor(iso, a);
+      const typeLabel = a.type === "daily" ? "Diaria" : "Rotación semanal";
+      const loggedDur = getLoggedDuration(iso, a.id);
+      const durLabel = loggedDur ? fmtDurationMin(loggedDur) : null;
 
       return `
         <div class="item ${checked ? "isDone" : ""}">
@@ -832,77 +1121,107 @@
               ${a.subcategory ? `<span class="tag">${escapeHTML(a.subcategory)}</span>` : ""}
               <span class="tag">${escapeHTML(typeLabel)}</span>
               ${a.energy ? `<span class="tag">${escapeHTML(energyLabel(a.energy))}</span>` : ""}
-              ${durLabel  ? `<span class="tag tagTime">⏱ ${escapeHTML(durLabel)}</span>` : ""}
+              ${durLabel ? `<span class="tag tagTime">⏱ ${escapeHTML(durLabel)}</span>` : `<span class="tag tagNoTime">sin tiempo</span>`}
             </div>
+            ${checked ? `
+              <div class="durationControls" style="margin-top:10px;">
+                <button class="durationBtn" type="button" data-action="dec" data-id="${escapeHTML(a.id)}">−30</button>
+                <div class="durationValue">${escapeHTML(loggedDur ? fmtDurationMin(loggedDur) : "0 min")}</div>
+                <button class="durationBtn" type="button" data-action="inc" data-id="${escapeHTML(a.id)}">+30</button>
+              </div>
+            ` : ""}
           </div>
-        </div>`;
+        </div>
+      `;
     }).join("");
   }
 
-  function bindCheckboxDelegation(container) {
-    if (!container || container.__boundBitacoraCheckbox) return;
-    container.__boundBitacoraCheckbox = true;
+  function bindCardDelegation(container) {
+    if (!container || container.__boundBitacoraCard) return;
+    container.__boundBitacoraCard = true;
 
     on(container, "change", e => {
       const target = e.target;
       if (!target?.classList?.contains("chk")) return;
       const id = target.dataset.id;
-      const a  = aById(id);
+      const a = aById(id);
       if (!a) return;
 
       const checked = target.checked;
       setDoneFor(state.dateISO, a, checked);
 
       if (checked) {
-        // Ask for duration — renders today after modal closes
         askDuration(a, state.dateISO);
       } else {
-        // Remove logged duration when unchecking
         setLoggedDuration(state.dateISO, a.id, 0);
-        renderToday();
-        if (state.view === "week")    renderWeek();
-        if (state.view === "history") renderHistory();
-        if (state.view === "stats")   renderStats();
+        renderCurrentView();
       }
+    });
+
+    on(container, "click", e => {
+      const btn = e.target.closest(".durationBtn");
+      if (!btn) return;
+      const id = btn.dataset.id;
+      const a = aById(id);
+      if (!a) return;
+
+      const delta = btn.dataset.action === "inc" ? DURATION_STEP : -DURATION_STEP;
+      adjustLoggedDuration(state.dateISO, id, delta);
+      renderCurrentView();
     });
   }
 
   function renderKPIs(iso) {
-    const visible    = getFilteredActivities({ forManage: false });
-    const dailyActs  = db.activities.filter(a => a.type === "daily");
-    const doneDaily  = dailyActs.filter(a => isDoneFor(iso, a)).length;
-    const doneVisible= visible.filter(a => isDoneFor(iso, a)).length;
-    const errAct     = db.activities.find(a => (a.name || "").toLowerCase().includes("tiempo de error"));
-    const errVal     = errAct ? (isDoneFor(iso, errAct) ? 1 : 0) : 0;
+    const visible = getFilteredActivities({ forManage: false });
+    const dailyActs = db.activities.filter(a => a.type === "daily");
+    const doneDaily = dailyActs.filter(a => isDoneFor(iso, a)).length;
+    const doneVisible = visible.filter(a => isDoneFor(iso, a)).length;
+    const errAct = db.activities.find(a => (a.name || "").toLowerCase().includes("tiempo de error"));
+    const errVal = errAct ? getLoggedDuration(iso, errAct.id) : 0;
 
-    if (els.kpiDaily)     els.kpiDaily.textContent     = dailyActs.length ? `${Math.round((doneDaily / dailyActs.length) * 100)}%` : "0%";
+    if (els.kpiDaily) els.kpiDaily.textContent = dailyActs.length ? `${Math.round((doneDaily / dailyActs.length) * 100)}%` : "0%";
     if (els.kpiDailyHelp) els.kpiDailyHelp.textContent = `diarias hoy (${doneDaily}/${dailyActs.length})`;
-    if (els.kpiCount)     els.kpiCount.textContent     = `${doneVisible}/${visible.length}`;
-    if (els.kpiError)     els.kpiError.textContent     = String(errVal);
+    if (els.kpiCount) els.kpiCount.textContent = `${doneVisible}/${visible.length}`;
+    if (els.kpiError) els.kpiError.textContent = errVal ? fmtDurationMin(errVal) : "0";
   }
 
   function renderBalancePill(iso) {
     if (!els.balancePill) return;
     const doneActs = db.activities.filter(a => isDoneFor(iso, a));
-    let carga = 0, descanso = 0;
+    let carga = 0;
+    let descanso = 0;
+
     for (const a of doneActs) {
       const hay = `${a.name} ${a.category} ${a.subcategory || ""}`.toLowerCase();
-      const isRestish = hay.includes("descanso")||hay.includes("medit")||hay.includes("compartir")||hay.includes("mascota")||hay.includes("juego")||hay.includes("película")||hay.includes("serie")||hay.includes("respir")||hay.includes("natur");
-      const isWorkish = hay.includes("trabajo")||hay.includes("admin")||hay.includes("program")||hay.includes("pedagog")||hay.includes("finan")||hay.includes("planea")||hay.includes("idioma")||hay.includes("arte")||hay.includes("música");
+      const isRestish =
+        hay.includes("descanso") || hay.includes("medit") || hay.includes("compartir") || hay.includes("mascota") ||
+        hay.includes("juego") || hay.includes("película") || hay.includes("serie") || hay.includes("respir") || hay.includes("natur");
+
+      const isWorkish =
+        hay.includes("trabajo") || hay.includes("admin") || hay.includes("program") || hay.includes("pedagog") ||
+        hay.includes("finan") || hay.includes("planea") || hay.includes("idioma") || hay.includes("arte") || hay.includes("música");
+
       let score = 1;
       if (a.energy === "high") score = 1.5;
-      if (a.energy === "low")  score = 0.8;
-      if      (isRestish && !isWorkish) descanso += score;
-      else if (isWorkish && !isRestish) carga    += score;
-      else { carga += score * 0.6; descanso += score * 0.4; }
+      if (a.energy === "low") score = 0.8;
+
+      if (isRestish && !isWorkish) descanso += score;
+      else if (isWorkish && !isRestish) carga += score;
+      else {
+        carga += score * 0.6;
+        descanso += score * 0.4;
+      }
     }
+
     const total = carga + descanso;
     const ratio = total ? descanso / total : 0.5;
+
     let label = "—";
-    if (!doneActs.length)  label = "Sin lectura";
+    if (!doneActs.length) label = "Sin lectura";
     else if (ratio >= 0.58) label = "🟢 Balance suave";
     else if (ratio >= 0.45) label = "🟡 Balance medio";
-    else                    label = "🔴 Mucha carga";
+    else label = "🔴 Mucha carga";
+
     els.balancePill.textContent = label;
   }
 
@@ -912,32 +1231,39 @@
     ensureCycleFor(iso);
     rebuildCategoryFilter();
 
-    setChipPressed(els.chipPending,  state.pendingFirst !== false);
-    setChipPressed(els.chipShowDone, state.showDone     !== false);
+    setChipPressed(els.chipPending, state.pendingFirst !== false);
+    setChipPressed(els.chipShowDone, state.showDone !== false);
 
     if (els.dateTitle) els.dateTitle.textContent = fmtDateLong(iso);
-    if (els.dayNotes)  els.dayNotes.value = activeProfileData().logs[iso]?.notes || "";
+    if (els.dayNotes) els.dayNotes.value = activeProfileData().logs[iso]?.notes || "";
     bindNotesAutosave(iso);
+    renderSidebarDayMeta();
 
-    const activities = getFilteredActivities({ forManage: false });
-    const pending    = activities.filter(a => !isDoneFor(iso, a));
-    const done       = activities.filter(a =>  isDoneFor(iso, a));
+    let activities = getFilteredActivities({ forManage: false });
+    let pending = activities.filter(a => !isDoneFor(iso, a));
+    let done = activities.filter(a => isDoneFor(iso, a));
+
+    if (state.pendingFirst === false) {
+      const merged = [...done, ...pending];
+      done = merged.filter(a => isDoneFor(iso, a));
+      pending = merged.filter(a => !isDoneFor(iso, a));
+    }
 
     if (els.todaySub) {
       const mf = els.modeFilter?.value || "all";
       const ef = els.energyFilter?.value || "__all__";
-      const modeLabel  = mf === "daily" ? "Diarias" : mf === "complement" ? "Rotación" : "Todo";
-      const energyTxt  = ef === "__all__" ? "" : ` · ${energyLabel(ef)}`;
+      const modeLabel = mf === "daily" ? "Diarias" : mf === "complement" ? "Rotación" : "Todo";
+      const energyTxt = ef === "__all__" ? "" : ` · ${energyLabel(ef)}`;
       const profileTxt = activeProfile() === "alek" ? " · Alek" : " · Cata";
       els.todaySub.textContent = `${modeLabel}${energyTxt}${profileTxt}`;
     }
 
     if (els.pendingCount) els.pendingCount.textContent = String(pending.length);
-    if (els.doneCount)    els.doneCount.textContent    = String(done.length);
+    if (els.doneCount) els.doneCount.textContent = String(done.length);
 
     if (els.doneBucket) {
       const collapse = state.collapseDone === true;
-      const hidden   = collapse || state.showDone === false;
+      const hidden = collapse || state.showDone === false;
       els.doneBucket.classList.toggle("hidden", hidden);
       if (els.btnCollapseDone) {
         if (state.showDone === false) els.btnCollapseDone.textContent = "Hechas: OFF";
@@ -946,10 +1272,10 @@
     }
 
     if (els.pendingList) els.pendingList.innerHTML = renderActivityCards(pending, iso);
-    if (els.doneList)    els.doneList.innerHTML    = state.showDone ? renderActivityCards(done, iso) : "";
+    if (els.doneList) els.doneList.innerHTML = state.showDone ? renderActivityCards(done, iso) : "";
 
-    bindCheckboxDelegation(els.pendingList);
-    bindCheckboxDelegation(els.doneList);
+    bindCardDelegation(els.pendingList);
+    bindCardDelegation(els.doneList);
 
     renderKPIs(iso);
     renderBalancePill(iso);
@@ -958,8 +1284,11 @@
   function bulkToggle(mode) {
     const iso = state.dateISO;
     const visibleDaily = getFilteredActivities({ forManage: false }).filter(a => a.type === "daily");
-    visibleDaily.forEach(a => setDoneFor(iso, a, mode === "check"));
-    renderToday();
+    visibleDaily.forEach(a => {
+      setDoneFor(iso, a, mode === "check");
+      if (mode !== "check") setLoggedDuration(iso, a.id, 0);
+    });
+    renderCurrentView();
     toast(mode === "check" ? "Diarias marcadas ✅" : "Diarias desmarcadas 🧼", "ok");
   }
 
@@ -967,9 +1296,16 @@
      Agenda
   ========================================================= */
   function renderAgenda() {
-    const year  = state.agendaYear;
+    const selected = state.agendaSelectedDay || todayISO();
+    state.dateISO = selected;
+
+    const selectedDate = isoToDate(selected);
+    state.agendaYear = selectedDate.getFullYear();
+    state.agendaMonth = selectedDate.getMonth();
+
+    const year = state.agendaYear;
     const month = state.agendaMonth;
-    const pd    = activeProfileData();
+    const pd = activeProfileData();
 
     if (els.agendaMonthLabel) {
       const profLabel = activeProfile() === "alek" ? "Alek" : "Cata";
@@ -977,41 +1313,40 @@
     }
 
     const firstDayOfWeek = new Date(year, month, 1).getDay();
-    const daysInMonth    = new Date(year, month + 1, 0).getDate();
-    const dailyActs      = db.activities.filter(a => a.type === "daily");
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const dailyActs = db.activities.filter(a => a.type === "daily");
 
-    // Pre-compute day stats without calling ensureDay (avoid bloat)
     const dayStats = {};
     for (let d = 1; d <= daysInMonth; d++) {
-      const iso  = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
       const dayLog = pd.logs[iso];
-      const done   = dayLog ? dailyActs.filter(a => !!dayLog.checksDaily?.[a.id]).length : 0;
-      const durSum = dayLog ? Object.values(dayLog.durations || {}).reduce((s, v) => s + v, 0) : 0;
+      const done = dayLog ? dailyActs.filter(a => !!dayLog.checksDaily?.[a.id]).length : 0;
+      const durSum = dayLog ? Object.values(dayLog.durations || {}).reduce((s, v) => s + ensureStep(v), 0) : 0;
       dayStats[iso] = { done, pct: dailyActs.length ? done / dailyActs.length : 0, durSum };
     }
 
     let html = `<div class="agendaCal" role="grid" aria-label="Calendario de ${monthNamesFull[month]} ${year}">`;
+    dayNames.forEach(d => {
+      html += `<div class="calDayHeader" role="columnheader">${escapeHTML(d)}</div>`;
+    });
 
-    // Day headers
-    dayNames.forEach(d => { html += `<div class="calDayHeader" role="columnheader">${escapeHTML(d)}</div>`; });
+    for (let i = 0; i < firstDayOfWeek; i++) {
+      html += `<div class="calCell empty" aria-hidden="true"></div>`;
+    }
 
-    // Empty cells before month starts
-    for (let i = 0; i < firstDayOfWeek; i++) html += `<div class="calCell empty" aria-hidden="true"></div>`;
-
-    // Day cells
     const todayStr = todayISO();
     for (let d = 1; d <= daysInMonth; d++) {
-      const iso        = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      const stat       = dayStats[iso];
-      const pct        = stat.pct;
+      const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const stat = dayStats[iso];
+      const pct = stat.pct;
       const isSelected = iso === state.agendaSelectedDay;
-      const isToday    = iso === todayStr;
+      const isToday = iso === todayStr;
 
       let lv = "";
-      if      (pct > 0 && pct < 0.25) lv = "lv1";
+      if (pct > 0 && pct < 0.25) lv = "lv1";
       else if (pct >= 0.25 && pct < 0.5) lv = "lv2";
-      else if (pct >= 0.5  && pct < 0.8) lv = "lv3";
-      else if (pct >= 0.8)               lv = "lv4";
+      else if (pct >= 0.5 && pct < 0.8) lv = "lv3";
+      else if (pct >= 0.8) lv = "lv4";
 
       const durTxt = stat.durSum ? ` · ${fmtDurationMin(stat.durSum)}` : "";
 
@@ -1024,7 +1359,8 @@
           <span class="calDay">${d}</span>
           ${pct > 0 ? `<span class="calPct">${Math.round(pct * 100)}%</span>` : ""}
           ${stat.durSum ? `<span class="calDur">${escapeHTML(fmtDurationMin(stat.durSum))}</span>` : ""}
-        </div>`;
+        </div>
+      `;
     }
 
     html += `</div>`;
@@ -1034,34 +1370,35 @@
       $$(".calCell[data-iso]", els.agendaCalendar).forEach(cell => {
         const go = () => {
           state.agendaSelectedDay = cell.dataset.iso;
-          state.dateISO           = cell.dataset.iso;
+          state.dateISO = cell.dataset.iso;
           saveState();
-          renderAgenda(); // re-render to update selected cell
+          renderAgenda();
         };
         on(cell, "click", go);
-        on(cell, "keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+        on(cell, "keydown", e => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            go();
+          }
+        });
       });
     }
 
     renderAgendaDayDetail();
+    renderAgendaSchedule();
+    renderSidebarDayMeta();
   }
 
   function renderAgendaDayDetail() {
     if (!els.agendaDayDetail) return;
 
-    const iso    = state.agendaSelectedDay || todayISO();
-    const pd     = activeProfileData();
+    const iso = state.agendaSelectedDay || todayISO();
+    const pd = activeProfileData();
     const dayLog = pd.logs[iso];
-
-    // Get done/pending using actual logs (no ensureDay side-effects)
-    const doneActs    = db.activities.filter(a => {
-      if (a.type === "daily") return !!dayLog?.checksDaily?.[a.id];
-      return !!pd.cycle?.done?.[a.id];
-    });
-    const pendingActs = db.activities.filter(a => !doneActs.includes(a));
-    const durations   = dayLog?.durations || {};
-
-    const totalTime = Object.values(durations).reduce((s, v) => s + v, 0);
+    const doneActs = getDoneActsForDay(iso);
+    const pendingActs = db.activities.filter(a => !doneActs.some(d => d.id === a.id));
+    const durations = dayLog?.durations || {};
+    const totalTime = Object.values(durations).reduce((s, v) => s + ensureStep(v), 0);
     const profLabel = activeProfile() === "alek" ? "Alek" : "Cata";
 
     let html = `
@@ -1071,18 +1408,18 @@
           <div class="muted" style="margin-top:3px">${profLabel} · ${doneActs.length} actividades hechas${totalTime ? ` · ${fmtDurationMin(totalTime)} registradas` : ""}</div>
         </div>
         <button class="btn ghost" id="btnGoToDay" type="button" style="white-space:nowrap">Ir a este día</button>
-      </div>`;
+      </div>
+    `;
 
     if (doneActs.length === 0) {
       html += `<div class="emptyState" style="margin-top:12px">Sin actividades registradas para este día.</div>`;
     } else {
       html += `<div class="scheduleList">`;
-      // Sort: activities with logged duration first (descending), then without
       const sorted = [...doneActs].sort((a, b) => (durations[b.id] || 0) - (durations[a.id] || 0));
       sorted.forEach(a => {
-        const dur       = durations[a.id];
-        const durLabel  = dur ? fmtDurationMin(dur) : null;
-        const barHeight = dur ? Math.min(Math.round(dur / 180 * 60) + 24, 80) : 24;
+        const dur = ensureStep(durations[a.id] || 0);
+        const durLabel = dur ? fmtDurationMin(dur) : null;
+        const barHeight = dur ? Math.min(Math.round((dur / 180) * 60) + 24, 80) : 24;
 
         html += `
           <div class="scheduleItem">
@@ -1091,13 +1428,11 @@
               <div class="scheduleName">${escapeHTML(a.name)}</div>
               <div class="scheduleMeta">
                 <span class="tag">${escapeHTML(a.category)}</span>
-                ${durLabel
-                  ? `<span class="tag tagTime">⏱ ${escapeHTML(durLabel)}</span>`
-                  : `<span class="tag tagNoTime">Sin tiempo registrado</span>`
-                }
+                ${durLabel ? `<span class="tag tagTime">⏱ ${escapeHTML(durLabel)}</span>` : `<span class="tag tagNoTime">Sin tiempo registrado</span>`}
               </div>
             </div>
-          </div>`;
+          </div>
+        `;
       });
       html += `</div>`;
     }
@@ -1108,7 +1443,8 @@
         <div class="agendaNote">
           <div class="muted" style="font-size:12px;margin-bottom:6px">📝 Nota del día</div>
           <div class="hint tiny">${escapeHTML(dayLog.notes)}</div>
-        </div>`;
+        </div>
+      `;
     }
 
     if (pendingActs.length > 0 && doneActs.length > 0) {
@@ -1118,12 +1454,12 @@
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
           ${pendingActs.slice(0, 12).map(a => `<span class="tag" style="opacity:.6">${escapeHTML(a.name)}</span>`).join("")}
           ${pendingActs.length > 12 ? `<span class="tag" style="opacity:.5">+${pendingActs.length - 12} más</span>` : ""}
-        </div>`;
+        </div>
+      `;
     }
 
     els.agendaDayDetail.innerHTML = html;
 
-    // Bind "Ir a este día" button
     const goBtn = document.getElementById("btnGoToDay");
     on(goBtn, "click", () => {
       state.dateISO = iso;
@@ -1132,16 +1468,57 @@
     });
   }
 
+  function renderAgendaSchedule() {
+    if (!els.agendaSchedule) return;
+
+    const iso = state.agendaSelectedDay || todayISO();
+    const schedule = buildScheduleForDay(iso);
+
+    if (!schedule.length) {
+      els.agendaSchedule.innerHTML = `
+        <div class="scheduleEmpty">
+          Todavía no hay bloques de horario construidos para este día.
+          <br><br>
+          Marca actividades y súmales tiempo en bloques de ${DURATION_STEP} min desde la vista de Hoy.
+        </div>
+      `;
+      return;
+    }
+
+    const total = schedule.reduce((acc, item) => acc + item.duration, 0);
+
+    els.agendaSchedule.innerHTML = `
+      <div class="muted" style="font-size:12px;margin-bottom:10px;">
+        Horario construido automáticamente desde las actividades con duración registrada · Total: ${escapeHTML(fmtDurationMin(total))}
+      </div>
+      <div class="scheduleTimeline">
+        ${schedule.map(item => `
+          <div class="scheduleSlot">
+            <div class="scheduleTime">${escapeHTML(item.startText)} - ${escapeHTML(item.endText)}</div>
+            <div class="scheduleBlock">
+              <div class="scheduleBlockTitle">${escapeHTML(item.activity.name)}</div>
+              <div class="scheduleBlockMeta">
+                <span class="tag">${escapeHTML(item.activity.category)}</span>
+                ${item.activity.subcategory ? `<span class="tag">${escapeHTML(item.activity.subcategory)}</span>` : ""}
+                <span class="tag tagTime">${escapeHTML(fmtDurationMin(item.duration))}</span>
+              </div>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
   /* =========================================================
      Week
   ========================================================= */
   function weekInsightText(byDay, byCategory) {
     const avgPct = avg(byDay.map(d => d.pctDaily));
-    const bestCat  = byCategory[0];
+    const bestCat = byCategory[0];
     const worstCat = byCategory[byCategory.length - 1];
     if (!byDay.length) return "Sin datos todavía.";
     if (avgPct >= 0.75) return `Semana fuerte. Sostuvieron bastante bien el ritmo${bestCat ? `, especialmente en ${bestCat.cat}` : ""}.`;
-    if (avgPct >= 0.5)  return `Semana decente. Hubo movimiento real, aunque todavía hay margen${worstCat ? ` para cuidar mejor lo relacionado con ${worstCat.cat}` : ""}.`;
+    if (avgPct >= 0.5) return `Semana decente. Hubo movimiento real, aunque todavía hay margen${worstCat ? ` para cuidar mejor lo relacionado con ${worstCat.cat}` : ""}.`;
     return `Semana flojita. No pasa nada, pero sí conviene revisar qué se queda siempre para después${worstCat ? `, sobre todo en ${worstCat.cat}` : ""}.`;
   }
 
@@ -1150,20 +1527,21 @@
     state.weekStartISO = w0;
     saveState();
 
-    const days       = Array.from({ length: 7 }, (_, i) => addDays(w0, i));
-    const dailyActs  = db.activities.filter(a => a.type === "daily");
-    const profLabel  = activeProfile() === "alek" ? "Alek" : "Cata";
+    const days = Array.from({ length: 7 }, (_, i) => addDays(w0, i));
+    const dailyActs = db.activities.filter(a => a.type === "daily");
+    const profLabel = activeProfile() === "alek" ? "Alek" : "Cata";
 
     if (els.weekSub) {
-      const d0 = isoToDate(w0), d6 = isoToDate(addDays(w0, 6));
-      els.weekSub.textContent = `${d0.toLocaleDateString("es-CO",{month:"short",day:"numeric"})} - ${d6.toLocaleDateString("es-CO",{month:"short",day:"numeric"})} · ${profLabel}`;
+      const d0 = isoToDate(w0);
+      const d6 = isoToDate(addDays(w0, 6));
+      els.weekSub.textContent = `${d0.toLocaleDateString("es-CO", { month: "short", day: "numeric" })} - ${d6.toLocaleDateString("es-CO", { month: "short", day: "numeric" })} · ${profLabel}`;
     }
 
     const byDay = days.map(iso => {
-      const pd     = activeProfileData();
+      const pd = activeProfileData();
       const dayLog = pd.logs[iso];
-      const done   = dailyActs.filter(a => !!dayLog?.checksDaily?.[a.id]).length;
-      const total  = dailyActs.length;
+      const done = dailyActs.filter(a => !!dayLog?.checksDaily?.[a.id]).length;
+      const total = dailyActs.length;
       return { iso, done, total, pct: total ? done / total : 0 };
     });
 
@@ -1176,13 +1554,24 @@
             <div class="dayDate">${escapeHTML(fmtDateShort(d.iso))}</div>
             <div class="progress"><div class="bar" style="width:${Math.round(d.pct * 100)}%"></div></div>
             <div class="dayStats">${Math.round(d.pct * 100)}% · ${d.done}/${d.total}</div>
-          </div>`;
+          </div>
+        `;
       }).join("");
 
       $$(".dayCard", els.weekGrid).forEach(card => {
-        const go = () => { state.dateISO = card.dataset.iso; saveState(); setView("today"); };
+        const go = () => {
+          state.dateISO = card.dataset.iso;
+          state.agendaSelectedDay = card.dataset.iso;
+          saveState();
+          setView("today");
+        };
         on(card, "click", go);
-        on(card, "keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+        on(card, "keydown", e => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            go();
+          }
+        });
       });
     }
 
@@ -1191,17 +1580,21 @@
         <div class="row">
           <div>${escapeHTML(fmtDateShort(d.iso))}</div>
           <div><b>${Math.round(d.pct * 100)}%</b> <span class="muted">(${d.done}/${d.total})</span></div>
-        </div>`).join("");
+        </div>
+      `).join("");
     }
 
     const cats = unique(dailyActs.map(a => a.category).filter(Boolean)).sort(sortByLocale);
     const byCategory = cats.map(cat => {
       const acts = dailyActs.filter(a => a.category === cat);
-      let done = 0, total = acts.length * 7;
+      let done = 0;
+      let total = acts.length * 7;
       const pd = activeProfileData();
       for (const iso of days) {
         const dayLog = pd.logs[iso];
-        for (const a of acts) { if (!!dayLog?.checksDaily?.[a.id]) done++; }
+        for (const a of acts) {
+          if (!!dayLog?.checksDaily?.[a.id]) done++;
+        }
       }
       return { cat, done, total, pct: total ? done / total : 0 };
     }).sort((a, b) => b.pct - a.pct);
@@ -1221,45 +1614,69 @@
   function renderHistorySummary(m) {
     if (!els.historySummary) return;
     els.historySummary.innerHTML = [
-      { label:"Promedio diario", value:fmtPct01(m.avgDaily), help:"sobre actividades diarias" },
-      { label:"Días activos",    value:`${m.activeDays}/${m.rangeDays}`, help:"con al menos una actividad hecha" },
-      { label:"Tiempo acumulado",value:fmtDurationMin(m.totalDuration), help:"según tiempo registrado" },
-      { label:"Días con nota",   value:`${m.noteDays}`, help:"bitácora escrita" },
-    ].map(c => `<div class="summaryCard"><div class="muted">${escapeHTML(c.label)}</div><div class="dashKpiValue">${escapeHTML(c.value)}</div><div class="tiny">${escapeHTML(c.help)}</div></div>`).join("");
+      { label: "Promedio diario", value: fmtPct01(m.avgDaily), help: "sobre actividades diarias" },
+      { label: "Días activos", value: `${m.activeDays}/${m.rangeDays}`, help: "con al menos una actividad hecha" },
+      { label: "Tiempo acumulado", value: fmtDurationMin(m.totalDuration), help: "según tiempo registrado" },
+      { label: "Días con nota", value: `${m.noteDays}`, help: "bitácora escrita" },
+    ].map(c => `
+      <div class="summaryCard">
+        <div class="muted">${escapeHTML(c.label)}</div>
+        <div class="dashKpiValue">${escapeHTML(c.value)}</div>
+        <div class="tiny">${escapeHTML(c.help)}</div>
+      </div>
+    `).join("");
   }
 
   function renderHistoryHighlights(m) {
     if (!els.historyHighlights) return;
     const { best, worst, balance } = { best: m.bestDay, worst: m.worstDay, balance: m.balance };
     els.historyHighlights.innerHTML = [
-      { cls:"good", title:"Mejor día",      text: best  ? `${fmtDateShort(best.iso)} · ${fmtPct01(best.pctDaily)} (${best.doneDaily}/${best.totalDaily})` : "—" },
-      { cls:"bad",  title:"Día más flojo",  text: worst ? `${fmtDateShort(worst.iso)} · ${fmtPct01(worst.pctDaily)}` : "—" },
-      { cls:"warn", title:"Días vacíos",    text: `${m.emptyDays} de ${m.rangeDays}` },
-      { cls:"good", title:"Balance general",text: balance.restRatio >= 0.58 ? "Más descanso/cuidado" : balance.restRatio >= 0.45 ? "Equilibrio medio" : "Más carga que descanso" },
-    ].map(x => `<div class="highlightItem ${escapeHTML(x.cls)}"><div class="muted">${escapeHTML(x.title)}</div><div><strong>${escapeHTML(x.text)}</strong></div></div>`).join("");
+      { cls: "good", title: "Mejor día", text: best ? `${fmtDateShort(best.iso)} · ${fmtPct01(best.pctDaily)} (${best.doneDaily}/${best.totalDaily})` : "—" },
+      { cls: "bad", title: "Día más flojo", text: worst ? `${fmtDateShort(worst.iso)} · ${fmtPct01(worst.pctDaily)}` : "—" },
+      { cls: "warn", title: "Días vacíos", text: `${m.emptyDays} de ${m.rangeDays}` },
+      { cls: "good", title: "Balance general", text: balance.restRatio >= 0.58 ? "Más descanso/cuidado" : balance.restRatio >= 0.45 ? "Equilibrio medio" : "Más carga que descanso" },
+    ].map(x => `
+      <div class="highlightItem ${escapeHTML(x.cls)}">
+        <div class="muted">${escapeHTML(x.title)}</div>
+        <div><strong>${escapeHTML(x.text)}</strong></div>
+      </div>
+    `).join("");
   }
 
   function renderHistoryTimeline(m) {
     if (!els.historyTimeline) return;
-    const interesting = [...m.byDay].filter(d => d.doneAll > 0 || (d.notes || "").trim()).sort((a, b) => b.iso.localeCompare(a.iso)).slice(0, 18);
-    if (!interesting.length) { els.historyTimeline.innerHTML = `<div class="emptyState">Todavía no hay suficiente rastro. Cuando empiecen a usar esto, aquí aparecerá la historia.</div>`; return; }
+    const interesting = [...m.byDay]
+      .filter(d => d.doneAll > 0 || (d.notes || "").trim())
+      .sort((a, b) => b.iso.localeCompare(a.iso))
+      .slice(0, 18);
+
+    if (!interesting.length) {
+      els.historyTimeline.innerHTML = `<div class="emptyState">Todavía no hay suficiente rastro. Cuando empiecen a usar esto, aquí aparecerá la historia.</div>`;
+      return;
+    }
+
     els.historyTimeline.innerHTML = interesting.map(d => `
       <div class="timelineItem">
         <div><strong>${escapeHTML(fmtDateLong(d.iso))}</strong></div>
         <div class="tiny">Cumplimiento diario: ${escapeHTML(fmtPct01(d.pctDaily))} · Hechas: ${d.doneAll}/${d.totalAll}</div>
         ${d.notes ? `<div class="hint tiny" style="margin-top:6px;">${escapeHTML(d.notes).slice(0, 220)}</div>` : ""}
-      </div>`).join("");
+      </div>
+    `).join("");
   }
 
   function renderHistoryTopActivities(m) {
     if (!els.historyTopActivities) return;
     const top = m.topActivities.slice(0, 10);
-    if (!top.length) { els.historyTopActivities.innerHTML = `<div class="emptyState">Sin actividades todavía.</div>`; return; }
+    if (!top.length) {
+      els.historyTopActivities.innerHTML = `<div class="emptyState">Sin actividades todavía.</div>`;
+      return;
+    }
     els.historyTopActivities.innerHTML = top.map(a => `
       <div class="topItem">
         <div><strong>${escapeHTML(a.name)}</strong> <span class="muted">(${escapeHTML(a.cat)})</span></div>
         <div class="tiny">Presencia: ${a.done}/${a.total} · ${fmtPct01(a.pct)}</div>
-      </div>`).join("");
+      </div>
+    `).join("");
   }
 
   function renderHistoryCalendar(m) {
@@ -1267,19 +1684,25 @@
     const days = [...m.byDay];
     const weeks = [];
     for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
+
     const heatRows = weeks.map(week => `
       <div class="heatmapRow">
         ${week.map(d => {
           const pct = d.pctDaily;
           let lv = "";
-          if      (pct > 0 && pct < 0.25) lv = "lv1";
+          if (pct > 0 && pct < 0.25) lv = "lv1";
           else if (pct >= 0.25 && pct < 0.5) lv = "lv2";
-          else if (pct >= 0.5  && pct < 0.8) lv = "lv3";
-          else if (pct >= 0.8)               lv = "lv4";
+          else if (pct >= 0.5 && pct < 0.8) lv = "lv3";
+          else if (pct >= 0.8) lv = "lv4";
           return `<div class="heatCell ${lv}" title="${escapeHTML(fmtDateLong(d.iso))}: ${Math.round(pct * 100)}%">${escapeHTML(String(isoToDate(d.iso).getDate()))}</div>`;
         }).join("")}
-      </div>`).join("");
-    els.historyCalendar.innerHTML = `<div class="tiny" style="margin-bottom:8px;">Más oscuro = mejor cumplimiento diario.</div><div class="heatmap">${heatRows}</div>`;
+      </div>
+    `).join("");
+
+    els.historyCalendar.innerHTML = `
+      <div class="tiny" style="margin-bottom:8px;">Más oscuro = mejor cumplimiento diario.</div>
+      <div class="heatmap">${heatRows}</div>
+    `;
   }
 
   function renderHistoryTrend(m) {
@@ -1292,7 +1715,7 @@
 
   function renderHistory() {
     const range = clamp(Number(els.historyRange?.value || 30), 14, 365);
-    const m     = computeMetrics({ rangeDays: range });
+    const m = computeMetrics({ rangeDays: range });
     renderHistorySummary(m);
     renderHistoryTrend(m);
     renderHistoryCalendar(m);
@@ -1305,32 +1728,43 @@
      Stats
   ========================================================= */
   function narrativeFromMetrics(m) {
-    const topCat  = m.byCategory[0]?.cat;
+    const topCat = m.byCategory[0]?.cat;
     const weakCat = m.byCategory[m.byCategory.length - 1]?.cat;
     const p = [];
-    if (m.avgDaily >= 0.75)      p.push("El periodo se ve fuerte. Hay una constancia bastante real, no solo chispazos de motivación.");
-    else if (m.avgDaily >= 0.5)  p.push("El periodo se ve intermedio. Sí hay movimiento, pero todavía no con la estabilidad que haría que esto se sienta sostenido.");
-    else                          p.push("El periodo se ve flojo. No como juicio, sino como dato: varias cosas importantes se están quedando por fuera.");
+
+    if (m.avgDaily >= 0.75) p.push("El periodo se ve fuerte. Hay una constancia bastante real, no solo chispazos de motivación.");
+    else if (m.avgDaily >= 0.5) p.push("El periodo se ve intermedio. Sí hay movimiento, pero todavía no con la estabilidad que haría que esto se sienta sostenido.");
+    else p.push("El periodo se ve flojo. No como juicio, sino como dato: varias cosas importantes se están quedando por fuera.");
+
     if (m.streakBest >= 5) p.push(`La mejor racha fue de ${m.streakBest} días consistentes.`);
     else p.push("No hay rachas largas todavía. Eso suele indicar que la estructura actual todavía no está ayudando tanto como podría.");
+
     if (topCat) p.push(`La categoría con más presencia fue ${topCat}.`);
     if (weakCat && weakCat !== topCat) p.push(`La categoría más descuidada fue ${weakCat}, así que por ahí hay una alerta útil.`);
-    if (m.balance.restRatio < 0.45)       p.push("También hay una tendencia a que la carga pese más que el descanso. Bonita costumbre humana esa de exprimir la agenda.");
-    else if (m.balance.restRatio > 0.58)  p.push("Se ve una presencia interesante de cuidado, descanso o actividades de sostén. Eso sostiene todo lo demás.");
+
+    if (m.balance.restRatio < 0.45) p.push("También hay una tendencia a que la carga pese más que el descanso. Qué pasión tan humana por complicarse la vida.");
+    else if (m.balance.restRatio > 0.58) p.push("Se ve una presencia interesante de cuidado, descanso o actividades de sostén. Eso sostiene todo lo demás.");
+
     return p.join(" ");
   }
 
   function renderStats() {
     const range = clamp(Number(els.statsRange?.value || 30), 7, 365);
-    const m     = computeMetrics({ rangeDays: range });
+    const m = computeMetrics({ rangeDays: range });
 
     if (els.statsConsistency) {
       els.statsConsistency.innerHTML = [
-        { muted:"Promedio diario", val:fmtPct01(m.avgDaily),          tiny:"sobre actividades diarias" },
-        { muted:"Racha actual",    val:String(m.streakCurrent),        tiny:"días ≥ 60%" },
-        { muted:"Mejor racha",     val:String(m.streakBest),           tiny:"máxima consistencia" },
-        { muted:"Días activos",    val:`${m.activeDays}/${m.rangeDays}`,tiny:"con al menos una actividad" },
-      ].map(c => `<div class="statCard"><div class="muted">${escapeHTML(c.muted)}</div><div class="dashKpiValue">${escapeHTML(c.val)}</div><div class="tiny">${escapeHTML(c.tiny)}</div></div>`).join("");
+        { muted: "Promedio diario", val: fmtPct01(m.avgDaily), tiny: "sobre actividades diarias" },
+        { muted: "Racha actual", val: String(m.streakCurrent), tiny: "días ≥ 60%" },
+        { muted: "Mejor racha", val: String(m.streakBest), tiny: "máxima consistencia" },
+        { muted: "Días activos", val: `${m.activeDays}/${m.rangeDays}`, tiny: "con al menos una actividad" },
+      ].map(c => `
+        <div class="statCard">
+          <div class="muted">${escapeHTML(c.muted)}</div>
+          <div class="dashKpiValue">${escapeHTML(c.val)}</div>
+          <div class="tiny">${escapeHTML(c.tiny)}</div>
+        </div>
+      `).join("");
     }
 
     drawBarsChart(els.chartDone, m.byDay.map(d => Math.round(d.pctDaily * 100)));
@@ -1341,11 +1775,15 @@
         : `<div class="emptyState">Sin categorías todavía.</div>`;
     }
 
-    drawBarsChart(els.chartBalance, [Math.round(m.balance.carga), Math.round(m.balance.descanso)], ["Carga","Descanso"]);
-    if (els.chartBalanceHint) els.chartBalanceHint.textContent = m.balance.restRatio >= 0.58 ? "Predomina descanso/cuidado" : m.balance.restRatio >= 0.45 ? "Balance medio" : "Predomina carga";
+    drawBarsChart(els.chartBalance, [Math.round(m.balance.carga), Math.round(m.balance.descanso)], ["Carga", "Descanso"]);
+    if (els.chartBalanceHint) {
+      els.chartBalanceHint.textContent = m.balance.restRatio >= 0.58 ? "Predomina descanso/cuidado" : m.balance.restRatio >= 0.45 ? "Balance medio" : "Predomina carga";
+    }
 
-    drawBarsChart(els.chartEnergy, [m.energy.low, m.energy.mid, m.energy.high, m.energy.none], ["Baja","Media","Alta","Sin"]);
-    if (els.chartEnergyHint) els.chartEnergyHint.textContent = `Marcadas: ${m.energy.low + m.energy.mid + m.energy.high} · Sin marcar: ${m.energy.none}`;
+    drawBarsChart(els.chartEnergy, [m.energy.low, m.energy.mid, m.energy.high, m.energy.none], ["Baja", "Media", "Alta", "Sin"]);
+    if (els.chartEnergyHint) {
+      els.chartEnergyHint.textContent = `Marcadas: ${m.energy.low + m.energy.mid + m.energy.high} · Sin marcar: ${m.energy.none}`;
+    }
 
     if (els.statsAvoided) {
       const avoided = m.avoidedActivities.slice(0, 8);
@@ -1370,368 +1808,513 @@
      Manage
   ========================================================= */
   function openAdd() {
-    state.editId = null; saveState();
+    state.editId = null;
+    saveState();
     els.manageForm?.classList.remove("hidden");
-    if (els.mName)     els.mName.value = "";
+    if (els.mName) els.mName.value = "";
     if (els.mCategory) els.mCategory.value = "";
-    if (els.mType)     els.mType.value = "daily";
-    if (els.mSub)      els.mSub.value = "";
-    if (els.mEnergy)   els.mEnergy.value = "__none__";
+    if (els.mType) els.mType.value = "daily";
+    if (els.mSub) els.mSub.value = "";
+    if (els.mEnergy) els.mEnergy.value = "__none__";
     els.mName?.focus();
   }
 
   function openEdit(id) {
-    const a = aById(id); if (!a) return;
-    state.editId = id; saveState();
+    const a = aById(id);
+    if (!a) return;
+    state.editId = id;
+    saveState();
     els.manageForm?.classList.remove("hidden");
-    if (els.mName)     els.mName.value     = a.name;
+    if (els.mName) els.mName.value = a.name;
     if (els.mCategory) els.mCategory.value = a.category;
-    if (els.mType)     els.mType.value     = a.type;
-    if (els.mSub)      els.mSub.value      = a.subcategory || "";
-    if (els.mEnergy)   els.mEnergy.value   = a.energy || "__none__";
+    if (els.mType) els.mType.value = a.type;
+    if (els.mSub) els.mSub.value = a.subcategory || "";
+    if (els.mEnergy) els.mEnergy.value = a.energy || "__none__";
   }
 
-  function closeForm() { els.manageForm?.classList.add("hidden"); state.editId = null; saveState(); }
+  function closeForm() {
+    els.manageForm?.classList.add("hidden");
+    state.editId = null;
+    saveState();
+  }
 
   function saveActivityFromForm() {
-    const name       = (els.mName?.value     || "").trim();
-    const category   = (els.mCategory?.value || "").trim();
-    const type       = els.mType?.value === "daily" ? "daily" : "complement";
-    const subcategory= (els.mSub?.value      || "").trim();
-    const energyRaw  = els.mEnergy?.value    || "__none__";
-    const energy     = ["low","mid","high"].includes(energyRaw) ? energyRaw : undefined;
+    const name = (els.mName?.value || "").trim();
+    const category = (els.mCategory?.value || "").trim();
+    const type = els.mType?.value === "daily" ? "daily" : "complement";
+    const subcategory = (els.mSub?.value || "").trim();
+    const energyRaw = els.mEnergy?.value || "__none__";
+    const energy = ["low", "mid", "high"].includes(energyRaw) ? energyRaw : undefined;
 
-    if (!name || !category) { toast("Pongan nombre y categoría. El caos no se clasifica solo.", "warn"); return; }
+    if (!name || !category) {
+      toast("Pongan nombre y categoría. El caos no se clasifica solo.", "warn");
+      return;
+    }
 
     if (state.editId) {
-      const a = aById(state.editId); if (!a) return;
-      a.name = name; a.category = category; a.type = type; a.subcategory = subcategory; a.energy = energy;
+      const a = aById(state.editId);
+      if (!a) return;
+      a.name = name;
+      a.category = category;
+      a.type = type;
+      a.subcategory = subcategory;
+      a.energy = energy;
     } else {
       db.activities.push(normalizeActivity({ id: uid(), name, category, type, subcategory, energy }));
     }
 
-    saveDB(); rebuildCategoryFilter(); closeForm();
-    renderManage(); renderToday(); renderWeek(); renderHistory(); renderStats();
+    saveDB();
+    rebuildCategoryFilter();
+    closeForm();
+    renderCurrentView();
     toast("Actividad guardada ✅", "ok");
   }
 
   function deleteActivity(id) {
-    const a = aById(id); if (!a) return;
-    const doDelete = () => {
-      db.activities = db.activities.filter(x => x.id !== id);
-      PROFILES.forEach(p => {
-        const prof = db.profiles[p];
-        if (!prof) return;
-        Object.keys(prof.logs).forEach(iso => {
-          if (prof.logs[iso]?.checksDaily?.[id]) delete prof.logs[iso].checksDaily[id];
-          if (prof.logs[iso]?.durations?.[id])   delete prof.logs[iso].durations[id];
-        });
-        if (prof.cycle?.done?.[id]) delete prof.cycle.done[id];
-      });
-      saveDB(); rebuildCategoryFilter();
-      renderManage(); renderToday(); renderWeek(); renderHistory(); renderStats();
-      toast("Actividad borrada 🗑️", "warn");
-      modalClose();
-    };
+    const a = aById(id);
+    if (!a) return;
+
     modalOpen({
-      title: "Borrar actividad",
-      desc:  "Esto elimina también su rastro en checks diarios.",
-      contentHTML: `<div class="hint">¿Seguro que quieren borrar <b>${escapeHTML(a.name)}</b>? Se borra para ambos perfiles.</div>`,
+      title: "Eliminar actividad",
+      desc: `¿Borrar "${a.name}"? También se eliminarán sus rastros guardados en los perfiles.`,
       actions: [
-        { label:"Cancelar", kind:"ghost",  onClick: modalClose  },
-        { label:"Borrar",   kind:"danger", onClick: doDelete    },
+        { label: "Cancelar", kind: "ghost", onClick: modalClose },
+        {
+          label: "Eliminar",
+          kind: "danger",
+          onClick: () => {
+            db.activities = db.activities.filter(x => x.id !== id);
+
+            PROFILES.forEach(p => {
+              const prof = db.profiles[p];
+              if (!prof) return;
+
+              Object.keys(prof.logs || {}).forEach(iso => {
+                if (prof.logs[iso]?.checksDaily?.[id]) delete prof.logs[iso].checksDaily[id];
+                if (prof.logs[iso]?.durations?.[id]) delete prof.logs[iso].durations[id];
+              });
+
+              if (prof.cycle?.done?.[id]) delete prof.cycle.done[id];
+            });
+
+            saveDB();
+            modalClose();
+            renderCurrentView();
+            toast("Actividad eliminada 🗑️", "ok");
+          },
+        },
       ],
     });
   }
 
   function renderManage() {
-    rebuildCategoryFilter();
     const list = getFilteredActivities({ forManage: true });
-    if (!els.manageList) return;
-    if (!list.length) { els.manageList.innerHTML = `<div class="emptyState">No hay actividades que coincidan con ese filtro.</div>`; return; }
-    els.manageList.innerHTML = list.map(a => {
-      const t = a.type === "daily" ? "Diaria" : "Rotación semanal";
-      return `
+
+    if (els.manageList) {
+      els.manageList.innerHTML = list.length ? list.map(a => `
         <div class="manageItem">
           <div>
             <div class="manageName">${escapeHTML(a.name)}</div>
-            <div class="manageMeta">${escapeHTML(a.category)}${a.subcategory ? ` · ${escapeHTML(a.subcategory)}` : ""} · ${escapeHTML(t)}${a.energy ? ` · ${escapeHTML(energyLabel(a.energy))}` : ""}</div>
+            <div class="manageMeta">
+              ${escapeHTML(a.category)}
+              ${a.subcategory ? ` · ${escapeHTML(a.subcategory)}` : ""}
+              · ${a.type === "daily" ? "Diaria" : "Rotación semanal"}
+              ${a.energy ? ` · ${escapeHTML(energyLabel(a.energy))}` : ""}
+            </div>
           </div>
           <div class="smallBtns">
-            <button class="small"        data-edit="${escapeHTML(a.id)}" type="button">Editar</button>
-            <button class="small danger" data-del="${escapeHTML(a.id)}"  type="button">Borrar</button>
+            <button class="small" type="button" data-action="edit" data-id="${escapeHTML(a.id)}">Editar</button>
+            <button class="small danger" type="button" data-action="delete" data-id="${escapeHTML(a.id)}">Borrar</button>
           </div>
-        </div>`;
-    }).join("");
-    $$("[data-edit]", els.manageList).forEach(btn => on(btn, "click", () => openEdit(btn.dataset.edit)));
-    $$("[data-del]",  els.manageList).forEach(btn => on(btn, "click", () => deleteActivity(btn.dataset.del)));
+        </div>
+      `).join("") : `<div class="emptyState">No hay actividades para mostrar.</div>`;
+
+      $$("[data-action='edit']", els.manageList).forEach(btn => on(btn, "click", () => openEdit(btn.dataset.id)));
+      $$("[data-action='delete']", els.manageList).forEach(btn => on(btn, "click", () => deleteActivity(btn.dataset.id)));
+    }
   }
 
   /* =========================================================
-     Export / Import / Wipe
+     Settings / export / import
   ========================================================= */
   function exportJSON() {
-    const blob = new Blob([JSON.stringify({ meta:{ exportedAt:new Date().toISOString(), version:DB_SCHEMA, app:"Bitácora" }, db, state }, null, 2)], { type:"application/json" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href = url; a.download = `bitacora_backup_${todayISO()}.json`;
-    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    toast("Backup exportado ✅", "ok");
-  }
-
-  function importJSON(file) {
-    const fr = new FileReader();
-    fr.onload = () => {
-      try {
-        const obj = JSON.parse(fr.result);
-        if (!obj?.db?.activities) { toast("Ese JSON no parece un backup válido de Bitácora.", "warn"); return; }
-        db    = migrateDB(obj.db); saveDB();
-        if (obj.state && typeof obj.state === "object") {
-          state = { ...state, ...obj.state, dateISO: todayISO(), weekStartISO: startOfWeekISO(todayISO()), view: obj.state.view || "today" };
-          saveState();
-        }
-        rebuildCategoryFilter(); setView(state.view || "today");
-        renderWeek(); renderHistory(); renderStats();
-        toast("Importado. Sobrevivieron los datos, cosa rara pero bonita ✅", "ok");
-      } catch { toast("JSON inválido.", "warn"); }
-    };
-    fr.readAsText(file);
+    const blob = new Blob([JSON.stringify(db, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bitacora-backup-${todayISO()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast("Backup JSON exportado 📦", "ok");
   }
 
   function exportCSV() {
-    const rangeDays = 90;
-    const days = getDateRangeArray(todayISO(), rangeDays);
-
-    // Export current active profile's data
-    const profLabel = activeProfile();
-    const pd        = activeProfileData();
-
-    const header = ["id","name","category","subcategory","type","energy", ...days];
-    const rows   = db.activities.map(a => {
-      const base  = [a.id, a.name, a.category, a.subcategory || "", a.type, a.energy || ""];
-      const marks = days.map(iso => {
-        if (a.type === "daily") return (pd.logs[iso]?.checksDaily?.[a.id]) ? 1 : 0;
-        return pd.cycle?.done?.[a.id] ? 1 : 0;
+    const rows = [["perfil", "fecha", "actividad", "categoria", "subcategoria", "tipo", "energia", "hecha", "duracion_min", "nota_dia"]];
+    PROFILES.forEach(profile => {
+      const prof = db.profiles[profile];
+      const allDates = Object.keys(prof.logs || {}).sort();
+      allDates.forEach(iso => {
+        const log = prof.logs[iso] || {};
+        db.activities.forEach(a => {
+          const done = a.type === "daily" ? !!log.checksDaily?.[a.id] : !!prof.cycle?.done?.[a.id];
+          const dur = ensureStep(log.durations?.[a.id] || 0);
+          if (!done && !dur && !(log.notes || "").trim()) return;
+          rows.push([
+            profile,
+            iso,
+            a.name,
+            a.category,
+            a.subcategory || "",
+            a.type,
+            a.energy || "",
+            done ? "1" : "0",
+            dur || "",
+            log.notes || "",
+          ]);
+        });
       });
-      return [...base, ...marks];
     });
 
-    const durHeader = ["date","activity_id","activity_name","duration_min"];
-    const durRows   = [];
-    Object.entries(pd.logs).forEach(([iso, day]) => {
-      if (!day.durations) return;
-      Object.entries(day.durations).forEach(([actId, mins]) => {
-        const a = aById(actId);
-        if (a) durRows.push([iso, actId, a.name, mins]);
-      });
-    });
-    durRows.sort((a, b) => b[0].localeCompare(a[0]));
+    const csv = rows.map(r => r.map(csvEscape).join(";")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bitacora-${todayISO()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast("CSV exportado 📊", "ok");
+  }
 
-    const notesHeader = ["date","notes"];
-    const notesRows   = getAllLogDatesSortedDesc().map(iso => [iso, pd.logs[iso]?.notes || ""]);
+  function importJSONFile(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result || "{}"));
+        db = migrateDB(parsed);
+        saveDB();
 
-    const csv1 = [header, ...rows].map(r => r.map(csvEscape).join(",")).join("\n");
-    const csv2 = [durHeader, ...durRows].map(r => r.map(csvEscape).join(",")).join("\n");
-    const csv3 = [notesHeader, ...notesRows].map(r => r.map(csvEscape).join(",")).join("\n");
-    const finalCsv = `# ACTIVIDADES (${profLabel})\n${csv1}\n\n# TIEMPOS REGISTRADOS (${profLabel})\n${csv2}\n\n# NOTAS (${profLabel})\n${csv3}`;
+        state.dateISO = todayISO();
+        state.weekStartISO = startOfWeekISO(state.dateISO);
+        state.agendaSelectedDay = state.dateISO;
+        state.agendaYear = isoToDate(state.dateISO).getFullYear();
+        state.agendaMonth = isoToDate(state.dateISO).getMonth();
+        saveState();
 
-    const blob = new Blob([finalCsv], { type:"text/csv;charset=utf-8" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href = url; a.download = `bitacora_${profLabel}_${todayISO()}.csv`;
-    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    toast("CSV exportado 📄", "ok");
+        renderCurrentView();
+        toast("Backup importado ✅", "ok");
+      } catch {
+        toast("No se pudo importar ese JSON.", "err");
+      }
+    };
+    reader.readAsText(file);
   }
 
   function wipeAll() {
-    const doWipe = () => {
-      localStorage.removeItem(LS_KEY); localStorage.removeItem(LS_STATE);
-      db = seedDB(); state = loadState(); saveDB(); saveState();
-      rebuildCategoryFilter(); setView("today");
-      renderWeek(); renderHistory(); renderStats();
-      toast("Datos locales borrados. Renacimiento digital 🔥", "warn");
-      modalClose();
-    };
     modalOpen({
       title: "Borrar datos locales",
-      desc:  "Esto elimina TODO lo guardado en este dispositivo.",
-      contentHTML: `<div class="hint">Esto sí es nuclear. No hay Ctrl+Z.</div>`,
+      desc: "Esto borra la base local de esta bitácora en este navegador. No hay drama reversible después.",
       actions: [
-        { label:"Cancelar",    kind:"ghost",  onClick: modalClose },
-        { label:"Borrar todo", kind:"danger", onClick: doWipe    },
+        { label: "Cancelar", kind: "ghost", onClick: modalClose },
+        {
+          label: "Borrar todo",
+          kind: "danger",
+          onClick: () => {
+            db = seedDB();
+            state = loadState();
+            saveDB();
+            saveState();
+            modalClose();
+            initAfterDataReset();
+            toast("Datos borrados localmente 🧼", "ok");
+          },
+        },
       ],
     });
   }
 
-  /* =========================================================
-     Canvas charts
-  ========================================================= */
-  function getCanvasContext(canvas) {
-    if (!canvas || !(canvas instanceof HTMLCanvasElement)) return null;
-    return canvas.getContext("2d");
+  function renderSettings() {
+    if (els.appInfo) {
+      els.appInfo.textContent = `Offline · localStorage · esquema v${DB_SCHEMA} · bloques de ${DURATION_STEP} min`;
+    }
   }
 
-  function clearCanvas(ctx, w, h) { ctx.clearRect(0, 0, w, h); }
-
-  function drawBarsChart(canvas, values = [], labels = []) {
-    const ctx = getCanvasContext(canvas); if (!ctx) return;
-    const w = canvas.width, h = canvas.height;
-    clearCanvas(ctx, w, h);
-    const padX = 24, padTop = 16, padBottom = 32;
-    const chartH = h - padTop - padBottom, chartW = w - padX * 2;
-    ctx.strokeStyle = "rgba(255,255,255,.10)"; ctx.lineWidth = 1;
-    for (let i = 0; i <= 4; i++) { const y = padTop + (chartH * i) / 4; ctx.beginPath(); ctx.moveTo(padX, y); ctx.lineTo(w - padX, y); ctx.stroke(); }
-    const maxV = Math.max(1, ...values);
-    const gap  = 12, count = Math.max(1, values.length);
-    const barW = Math.max(8, (chartW - gap * (count - 1)) / count);
-    values.forEach((v, i) => {
-      const x = padX + i * (barW + gap);
-      const barH = chartH * (v / maxV);
-      const y    = padTop + chartH - barH;
-      const grad = ctx.createLinearGradient(0, y, 0, y + barH);
-      grad.addColorStop(0, "rgba(124,58,237,.92)"); grad.addColorStop(1, "rgba(34,197,94,.82)");
-      ctx.fillStyle = grad; ctx.fillRect(x, y, barW, barH);
-      if (labels[i]) { ctx.fillStyle = "rgba(229,231,235,.72)"; ctx.font = "12px system-ui"; ctx.textAlign = "center"; ctx.fillText(String(labels[i]), x + barW / 2, h - 10); }
-    });
+  /* =========================================================
+     Charts
+  ========================================================= */
+  function clearCanvas(canvas) {
+    if (!canvas) return null;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    const ratio = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const width = Math.max(320, Math.floor(rect.width || canvas.width || 800));
+    const height = Math.max(180, Math.floor(rect.height || canvas.height || 280));
+    canvas.width = Math.floor(width * ratio);
+    canvas.height = Math.floor(height * ratio);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    return { ctx, width, height };
   }
 
   function drawLineChart(canvas, values = []) {
-    const ctx = getCanvasContext(canvas); if (!ctx) return;
-    const w = canvas.width, h = canvas.height;
-    clearCanvas(ctx, w, h);
-    const padX = 24, padTop = 16, padBottom = 22;
-    const chartW = w - padX * 2, chartH = h - padTop - padBottom;
-    ctx.strokeStyle = "rgba(255,255,255,.10)"; ctx.lineWidth = 1;
-    for (let i = 0; i <= 4; i++) { const y = padTop + (chartH * i) / 4; ctx.beginPath(); ctx.moveTo(padX, y); ctx.lineTo(w - padX, y); ctx.stroke(); }
+    if (!canvas) return;
+    const setup = clearCanvas(canvas);
+    if (!setup) return;
+    const { ctx, width, height } = setup;
+
+    const pad = 24;
+    const innerW = width - pad * 2;
+    const innerH = height - pad * 2;
+
+    ctx.strokeStyle = "rgba(34,48,74,.9)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = pad + (innerH / 4) * i;
+      ctx.beginPath();
+      ctx.moveTo(pad, y);
+      ctx.lineTo(width - pad, y);
+      ctx.stroke();
+    }
+
     if (!values.length) return;
-    const maxV = Math.max(100, ...values), minV = Math.min(0, ...values);
-    const range = Math.max(1, maxV - minV);
-    const points = values.map((v, i) => ({
-      x: padX + (chartW * i) / Math.max(1, values.length - 1),
-      y: padTop + chartH - ((v - minV) / range) * chartH,
-    }));
-    ctx.beginPath(); ctx.lineWidth = 3; ctx.strokeStyle = "rgba(124,58,237,.92)";
-    points.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
+    const max = Math.max(100, ...values);
+    const stepX = values.length > 1 ? innerW / (values.length - 1) : innerW;
+
+    ctx.strokeStyle = "rgba(124,58,237,.95)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+
+    values.forEach((v, i) => {
+      const x = pad + stepX * i;
+      const y = pad + innerH - (safeNumber(v) / max) * innerH;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
     ctx.stroke();
-    points.forEach(p => { ctx.beginPath(); ctx.fillStyle = "rgba(34,197,94,.95)"; ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill(); });
+
+    ctx.fillStyle = "rgba(34,197,94,.9)";
+    values.forEach((v, i) => {
+      const x = pad + stepX * i;
+      const y = pad + innerH - (safeNumber(v) / max) * innerH;
+      ctx.beginPath();
+      ctx.arc(x, y, 2.8, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  function drawBarsChart(canvas, values = [], labels = []) {
+    if (!canvas) return;
+    const setup = clearCanvas(canvas);
+    if (!setup) return;
+    const { ctx, width, height } = setup;
+
+    const pad = 24;
+    const baseY = height - 34;
+    const innerW = width - pad * 2;
+    const max = Math.max(1, ...values.map(v => safeNumber(v, 0)));
+    const gap = 12;
+    const barW = values.length ? Math.max(18, (innerW - gap * (values.length - 1)) / values.length) : 24;
+
+    ctx.strokeStyle = "rgba(34,48,74,.9)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad, baseY);
+    ctx.lineTo(width - pad, baseY);
+    ctx.stroke();
+
+    values.forEach((v, i) => {
+      const n = safeNumber(v, 0);
+      const h = Math.max(2, (n / max) * (height - 80));
+      const x = pad + i * (barW + gap);
+      const y = baseY - h;
+
+      ctx.fillStyle = i % 2 === 0 ? "rgba(124,58,237,.85)" : "rgba(34,197,94,.82)";
+      ctx.fillRect(x, y, barW, h);
+
+      ctx.fillStyle = "rgba(229,231,235,.78)";
+      ctx.font = "11px system-ui";
+      ctx.textAlign = "center";
+      if (labels[i]) ctx.fillText(labels[i], x + barW / 2, baseY + 14);
+      ctx.fillText(String(Math.round(n)), x + barW / 2, y - 6);
+    });
   }
 
   /* =========================================================
-     Settings
+     Global render helpers
   ========================================================= */
-  function renderSettings() {
-    if (!els.appInfo) return;
-    const profLabel   = activeProfile() === "alek" ? "Alek" : "Cata";
-    const approxBytes = (JSON.stringify(db).length + JSON.stringify(state).length);
-    const kb          = (approxBytes / 1024).toFixed(1);
-    const alekDays    = Object.keys(db.profiles?.alek?.logs || {}).length;
-    const cataDays    = Object.keys(db.profiles?.cata?.logs || {}).length;
-    els.appInfo.textContent = `Offline · localStorage · esquema v${DB_SCHEMA} · ${db.activities.length} actividades · Perfil activo: ${profLabel} · Alek: ${alekDays} días · Cata: ${cataDays} días · ~${kb} KB`;
+  function renderCurrentView() {
+    updateProfileToggleUI();
+    renderSidebarDayMeta();
+
+    if (state.view === "today") renderToday();
+    else if (state.view === "agenda") renderAgenda();
+    else if (state.view === "week") renderWeek();
+    else if (state.view === "history") renderHistory();
+    else if (state.view === "stats") renderStats();
+    else if (state.view === "manage") renderManage();
+    else if (state.view === "settings") renderSettings();
+    else renderToday();
+  }
+
+  function initAfterDataReset() {
+    updateProfileToggleUI();
+    updateTabsUI(state.view);
+    rebuildCategoryFilter();
+    renderCurrentView();
   }
 
   /* =========================================================
-     Events / bind
+     Event bindings
   ========================================================= */
-  function bind() {
-    // Profile toggle
-    on(els.btnProfileAlek, "click", () => {
-      state.profile = "alek"; saveState();
-      updateProfileToggleUI();
-      setView(state.view || "today");
-    });
-    on(els.btnProfileCata, "click", () => {
-      state.profile = "cata"; saveState();
-      updateProfileToggleUI();
-      setView(state.view || "today");
+  function bindEvents() {
+    Object.entries(TAB_MAP).forEach(([key, obj]) => {
+      on(obj.btn, "click", () => setView(key));
     });
 
-    // Tabs
-    on(els.btnToday,    "click", () => setView("today"));
-    on(els.btnAgenda,   "click", () => setView("agenda"));
-    on(els.btnWeek,     "click", () => { state.weekStartISO = startOfWeekISO(state.dateISO); saveState(); setView("week"); });
-    on(els.btnHistory,  "click", () => setView("history"));
-    on(els.btnStats,    "click", () => setView("stats"));
-    on(els.btnManage,   "click", () => setView("manage"));
-    on(els.btnSettings, "click", () => setView("settings"));
     bindTabsKeyboard();
 
-    // Day nav
-    on(els.prevDay, "click", () => { state.dateISO = addDays(state.dateISO, -1); saveState(); renderToday(); });
-    on(els.nextDay, "click", () => { state.dateISO = addDays(state.dateISO, +1); saveState(); renderToday(); });
+    on(els.btnProfileAlek, "click", () => setProfile("alek"));
+    on(els.btnProfileCata, "click", () => setProfile("cata"));
 
-    // Week nav
-    on(els.prevWeek, "click", () => { state.weekStartISO = addDays(state.weekStartISO, -7); saveState(); renderWeek(); });
-    on(els.nextWeek, "click", () => { state.weekStartISO = addDays(state.weekStartISO, +7); saveState(); renderWeek(); });
-
-    // Agenda month nav
-    on(els.prevMonth, "click", () => {
-      state.agendaMonth--;
-      if (state.agendaMonth < 0) { state.agendaMonth = 11; state.agendaYear--; }
-      saveState(); renderAgenda();
-    });
-    on(els.nextMonth, "click", () => {
-      state.agendaMonth++;
-      if (state.agendaMonth > 11) { state.agendaMonth = 0; state.agendaYear++; }
-      saveState(); renderAgenda();
+    on(els.prevDay, "click", () => {
+      state.dateISO = addDays(state.dateISO, -1);
+      state.agendaSelectedDay = state.dateISO;
+      saveState();
+      renderCurrentView();
     });
 
-    // Today filters
-    on(els.search,         "input",  renderToday);
-    on(els.categoryFilter, "change", renderToday);
-    on(els.modeFilter,     "change", renderToday);
-    on(els.energyFilter,   "change", renderToday);
+    on(els.nextDay, "click", () => {
+      state.dateISO = addDays(state.dateISO, 1);
+      state.agendaSelectedDay = state.dateISO;
+      saveState();
+      renderCurrentView();
+    });
 
-    // Chips
-    on(els.chipPending, "click", () => { state.pendingFirst = !getChipPressed(els.chipPending); saveState(); renderToday(); });
-    on(els.chipShowDone,"click", () => { state.showDone     = !getChipPressed(els.chipShowDone); saveState(); renderToday(); });
-    on(els.btnCollapseDone,"click", () => { state.collapseDone = !state.collapseDone; saveState(); renderToday(); });
+    on(els.search, "input", () => renderToday());
+    on(els.categoryFilter, "change", () => renderToday());
+    on(els.modeFilter, "change", () => renderToday());
+    on(els.energyFilter, "change", () => renderToday());
+
+    on(els.chipPending, "click", () => {
+      state.pendingFirst = !getChipPressed(els.chipPending);
+      saveState();
+      renderToday();
+    });
+
+    on(els.chipShowDone, "click", () => {
+      state.showDone = !getChipPressed(els.chipShowDone);
+      saveState();
+      renderToday();
+    });
 
     on(els.btnResetFilters, "click", () => {
-      if (els.search)         els.search.value         = "";
+      if (els.search) els.search.value = "";
       if (els.categoryFilter) els.categoryFilter.value = "__all__";
-      if (els.modeFilter)     els.modeFilter.value     = "all";
-      if (els.energyFilter)   els.energyFilter.value   = "__all__";
-      state.pendingFirst = true; state.showDone = true; state.collapseDone = false;
-      saveState(); renderToday(); toast("Filtros reseteados 🧼", "ok");
+      if (els.modeFilter) els.modeFilter.value = "all";
+      if (els.energyFilter) els.energyFilter.value = "__all__";
+      state.pendingFirst = true;
+      state.showDone = true;
+      state.collapseDone = false;
+      saveState();
+      renderToday();
     });
 
-    // Bulk
-    on(els.btnCheckAll,   "click", () => bulkToggle("check"));
+    on(els.btnCollapseDone, "click", () => {
+      if (state.showDone === false) {
+        state.showDone = true;
+        state.collapseDone = false;
+      } else {
+        state.collapseDone = !state.collapseDone;
+      }
+      saveState();
+      renderToday();
+    });
+
+    on(els.btnCheckAll, "click", () => bulkToggle("check"));
     on(els.btnUncheckAll, "click", () => bulkToggle("uncheck"));
 
-    // Manage
-    on(els.btnAdd,         "click",  openAdd);
-    on(els.btnCancelEdit,  "click",  closeForm);
-    on(els.btnSaveActivity,"click",  saveActivityFromForm);
-    on(els.manageSearch,   "input",  renderManage);
-    on(els.manageFilterType,"change",renderManage);
+    on(els.prevMonth, "click", () => {
+      const d = new Date(state.agendaYear, state.agendaMonth - 1, 1);
+      state.agendaYear = d.getFullYear();
+      state.agendaMonth = d.getMonth();
+      const first = `${state.agendaYear}-${String(state.agendaMonth + 1).padStart(2, "0")}-01`;
+      state.agendaSelectedDay = first;
+      state.dateISO = first;
+      saveState();
+      renderAgenda();
+    });
 
-    // History / Stats ranges
+    on(els.nextMonth, "click", () => {
+      const d = new Date(state.agendaYear, state.agendaMonth + 1, 1);
+      state.agendaYear = d.getFullYear();
+      state.agendaMonth = d.getMonth();
+      const first = `${state.agendaYear}-${String(state.agendaMonth + 1).padStart(2, "0")}-01`;
+      state.agendaSelectedDay = first;
+      state.dateISO = first;
+      saveState();
+      renderAgenda();
+    });
+
+    on(els.prevWeek, "click", () => {
+      state.weekStartISO = addDays(state.weekStartISO, -7);
+      saveState();
+      renderWeek();
+    });
+
+    on(els.nextWeek, "click", () => {
+      state.weekStartISO = addDays(state.weekStartISO, 7);
+      saveState();
+      renderWeek();
+    });
+
     on(els.historyRange, "change", renderHistory);
-    on(els.statsRange,   "change", renderStats);
+    on(els.statsRange, "change", renderStats);
 
-    // Export / import (Settings only)
-    on(els.btnExport2,    "click",  exportJSON);
-    on(els.btnExportCSV2, "click",  exportCSV);
-    on(els.importFile2,   "change", e => { const f = e.target.files?.[0]; if (f) importJSON(f); e.target.value = ""; });
-    on(els.btnWipeAll,    "click",  wipeAll);
+    on(els.btnAdd, "click", openAdd);
+    on(els.btnCancelEdit, "click", closeForm);
+    on(els.btnSaveActivity, "click", saveActivityFromForm);
+    on(els.manageSearch, "input", renderManage);
+    on(els.manageFilterType, "change", renderManage);
+
+    on(els.btnExport2, "click", exportJSON);
+    on(els.btnExportCSV2, "click", exportCSV);
+    on(els.btnWipeAll, "click", wipeAll);
+
+    on(els.importFile2, "change", e => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      importJSONFile(file);
+      e.target.value = "";
+    });
+
+    on(window, "resize", () => {
+      if (state.view === "history") renderHistory();
+      if (state.view === "stats") renderStats();
+    });
   }
 
   /* =========================================================
-     Boot
+     Init
   ========================================================= */
-  function boot() {
-    // State already has dateISO = todayISO() from loadState
-    ensureCycleFor(state.dateISO);
-    rebuildCategoryFilter();
+  function init() {
+    state.dateISO = todayISO();
+    state.weekStartISO = startOfWeekISO(state.dateISO);
+    state.agendaSelectedDay = state.dateISO;
+    state.agendaYear = isoToDate(state.dateISO).getFullYear();
+    state.agendaMonth = isoToDate(state.dateISO).getMonth();
+    saveState();
+
     updateProfileToggleUI();
-    bind();
-    setView(state.view || "today");
-    renderWeek();
-    renderHistory();
-    renderStats();
-    renderSettings();
+    updateTabsUI(state.view);
+    rebuildCategoryFilter();
+    bindEvents();
+    renderCurrentView();
   }
 
-  boot();
+  init();
 })();

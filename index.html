@@ -5,122 +5,623 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#121826" />
   <meta name="color-scheme" content="dark light" />
+
   <title>Bitácora - Alek & Cata</title>
-  <meta name="description" content="Bitácora de Alek & Cata: actividades, enfoque, histórico y estadísticas útiles. Offline, clara y pensada para no soltar lo importante." />
+  <meta
+    name="description"
+    content="Bitácora de Alek & Cata: actividades, calendario, horario, histórico y estadísticas útiles. Offline, clara y pensada para no soltar lo importante."
+  />
+
   <link id="appStyles" rel="stylesheet" href="./styles.css" />
+
   <style>
     :root{
-      --bg:#0b1220;--panel:#0f172a;--text:#e5e7eb;--muted:#9ca3af;
-      --line:#22304a;--accent:#7c3aed;--accent2:#22c55e;
-      --danger:#ef4444;--warn:#f59e0b;--r:16px;--tap:44px;
+      --bg:#0b1220;
+      --panel:#0f172a;
+      --text:#e5e7eb;
+      --muted:#9ca3af;
+      --line:#22304a;
+      --accent:#7c3aed;
+      --accent2:#22c55e;
+      --danger:#ef4444;
+      --warn:#f59e0b;
+      --r:16px;
+      --tap:44px;
       --shadow:0 10px 30px rgba(0,0,0,.35);
       font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
     }
-    html,body{height:100%}
-    body{margin:0;background:var(--bg);color:var(--text)}
-    .app{min-height:100%;display:flex;flex-direction:column}
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{ margin:0; background:var(--bg); color:var(--text); }
+    .app{ min-height:100%; display:flex; flex-direction:column; }
 
     .topbar{
-      position:sticky;top:0;z-index:10;
-      background:rgba(15,23,42,.92);border-bottom:1px solid var(--line);
-      padding:12px 14px;display:flex;gap:12px;align-items:center;
-      justify-content:space-between;backdrop-filter:blur(10px);
+      position:sticky;
+      top:0;
+      z-index:20;
+      background:rgba(15,23,42,.92);
+      border-bottom:1px solid var(--line);
+      padding:12px 14px;
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:space-between;
+      backdrop-filter:blur(10px);
       -webkit-backdrop-filter:blur(10px);
+      flex-wrap:wrap;
     }
-    .brand{display:flex;align-items:center;gap:10px;min-width:0}
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width:0;
+      flex:1 1 auto;
+    }
+
     .logo{
-      width:38px;height:38px;border-radius:12px;display:grid;place-items:center;
+      width:38px;
+      height:38px;
+      border-radius:12px;
+      display:grid;
+      place-items:center;
       background:linear-gradient(135deg,rgba(124,58,237,.95),rgba(34,197,94,.75));
-      font-weight:900;box-shadow:var(--shadow);flex:0 0 auto
+      font-weight:900;
+      box-shadow:var(--shadow);
+      flex:0 0 auto;
     }
-    .brandText{min-width:0}
-    .brandText .title{font-weight:900;line-height:1.1}
-    .brandText .subtitle{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
-    .topbarActions{display:flex;gap:10px;align-items:center;min-width:0;flex-wrap:wrap}
-    .tabs{display:flex;gap:8px;align-items:center;overflow-x:auto;max-width:100%;scrollbar-width:thin}
+
+    .brandText{ min-width:0; }
+    .brandText .title{ font-weight:900; line-height:1.1; }
+    .brandText .subtitle{
+      font-size:12px;
+      color:var(--muted);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width:320px;
+    }
+
+    .profileToggle{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex:0 0 auto;
+      padding:4px;
+      border:1px solid rgba(34,48,74,.9);
+      background:rgba(17,28,51,.55);
+      border-radius:999px;
+    }
+
+    .profileBtn{
+      min-height:38px;
+      padding:8px 14px;
+      border-radius:999px;
+      border:1px solid transparent;
+      background:transparent;
+      color:var(--text);
+      font-weight:850;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+
+    .profileBtn.isActive,
+    .profileBtn[aria-pressed="true"]{
+      background:rgba(124,58,237,.18);
+      border-color:rgba(124,58,237,.45);
+    }
+
+    .topbarActions{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      min-width:0;
+      flex:1 1 100%;
+      justify-content:space-between;
+      flex-wrap:wrap;
+    }
+
+    .topbarUtility{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .tabs{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      overflow-x:auto;
+      max-width:100%;
+      scrollbar-width:thin;
+    }
+
     .tab{
-      min-height:var(--tap);padding:8px 12px;border-radius:999px;
-      border:1px solid rgba(34,48,74,.9);background:rgba(17,28,51,.55);
-      color:var(--text);font-weight:850;white-space:nowrap;cursor:pointer
+      min-height:var(--tap);
+      padding:8px 12px;
+      border-radius:999px;
+      border:1px solid rgba(34,48,74,.9);
+      background:rgba(17,28,51,.55);
+      color:var(--text);
+      font-weight:850;
+      white-space:nowrap;
+      cursor:pointer;
     }
-    .tab.isActive,.tab[aria-selected="true"]{border-color:rgba(124,58,237,.6);background:rgba(124,58,237,.18)}
+
+    .tab.isActive,
+    .tab[aria-selected="true"]{
+      border-color:rgba(124,58,237,.6);
+      background:rgba(124,58,237,.18);
+    }
+
     .btn{
-      min-height:var(--tap);padding:8px 12px;border-radius:12px;
-      border:1px solid rgba(124,58,237,.55);background:rgba(124,58,237,.18);
-      color:var(--text);font-weight:850;cursor:pointer;white-space:nowrap
+      min-height:var(--tap);
+      padding:8px 12px;
+      border-radius:12px;
+      border:1px solid rgba(124,58,237,.55);
+      background:rgba(124,58,237,.18);
+      color:var(--text);
+      font-weight:850;
+      cursor:pointer;
+      white-space:nowrap;
     }
-    .btn.ghost{border-color:rgba(34,48,74,.9);background:rgba(17,28,51,.55)}
-    .btn.danger{border-color:rgba(239,68,68,.55);background:rgba(239,68,68,.12)}
+
+    .btn.ghost{
+      border-color:rgba(34,48,74,.9);
+      background:rgba(17,28,51,.55);
+    }
+
+    .btn.danger{
+      border-color:rgba(239,68,68,.55);
+      background:rgba(239,68,68,.12);
+    }
+
     .iconBtn{
-      width:40px;height:40px;border-radius:12px;border:1px solid rgba(34,48,74,.9);
-      background:rgba(17,28,51,.55);color:var(--text);cursor:pointer
+      width:40px;
+      height:40px;
+      border-radius:12px;
+      border:1px solid rgba(34,48,74,.9);
+      background:rgba(17,28,51,.55);
+      color:var(--text);
+      cursor:pointer;
+      flex:0 0 auto;
     }
-    .sep{width:1px;height:26px;background:rgba(34,48,74,.9)}
+
+    .sep{
+      width:1px;
+      height:26px;
+      background:rgba(34,48,74,.9);
+    }
+
     .layout{
-      max-width:1320px;margin:0 auto;padding:14px;
-      display:grid;grid-template-columns:380px 1fr;gap:14px;width:100%
+      max-width:1320px;
+      margin:0 auto;
+      padding:14px;
+      display:grid;
+      grid-template-columns:380px 1fr;
+      gap:14px;
+      width:100%;
+      flex:1 1 auto;
     }
-    .side,.content{min-width:0}
-    @media(max-width:980px){.layout{grid-template-columns:1fr}.sep{display:none}}
+
+    .side,.content{ min-width:0; }
+
     .card{
-      background:rgba(15,23,42,.92);border:1px solid rgba(34,48,74,.7);
-      border-radius:22px;box-shadow:var(--shadow);padding:14px
+      background:rgba(15,23,42,.92);
+      border:1px solid rgba(34,48,74,.7);
+      border-radius:22px;
+      box-shadow:var(--shadow);
+      padding:14px;
     }
-    .cardHeader{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px}
-    .mini{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .hidden{display:none !important}
-    .divider{height:1px;background:rgba(34,48,74,.85);margin:12px 0}
-    .footer{margin-top:auto;padding:12px 14px;display:flex;justify-content:space-between;gap:10px;color:var(--muted)}
-    @media(max-width:980px){.footer{flex-direction:column}}
-    .skipLink{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden}
-    .skipLink:focus{left:12px;top:12px;width:auto;height:auto;z-index:9999;background:#111c33;color:#fff;padding:10px 12px;border-radius:12px;border:1px solid rgba(124,58,237,.6)}
-    .noscript{margin:14px;border:1px solid rgba(239,68,68,.5);background:rgba(239,68,68,.08);padding:12px;border-radius:16px}
-    .cssFail{position:sticky;top:0;z-index:9999;background:rgba(239,68,68,.12);border-bottom:1px solid rgba(239,68,68,.35);padding:10px 14px;font-size:13px;color:#ffd6d6;display:flex;gap:10px;align-items:center;justify-content:space-between}
-    .cssFail b{color:#fff}
-    .cssFail .miniBtn{border:1px solid rgba(239,68,68,.4);background:rgba(239,68,68,.12);color:#fff;border-radius:12px;padding:8px 10px;font-weight:850;cursor:pointer}
-    .toastRegion{position:fixed;right:14px;bottom:14px;z-index:1000;display:grid;gap:10px;pointer-events:none}
-    .modalOverlay{position:fixed;inset:0;background:rgba(0,0,0,.52);z-index:1200;display:grid;place-items:center;padding:16px}
-    .modal{width:min(760px,100%);background:rgba(15,23,42,.98);border:1px solid rgba(34,48,74,.85);border-radius:22px;box-shadow:0 30px 80px rgba(0,0,0,.5);overflow:hidden}
-    .modalHeader,.modalFooter{padding:14px 16px;border-bottom:1px solid rgba(34,48,74,.75)}
-    .modalFooter{border-bottom:none;border-top:1px solid rgba(34,48,74,.75)}
-    .modalBody{padding:16px}
-    .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-    @media(max-width:980px){.kpis{grid-template-columns:1fr}}
-    .kpi{padding:10px 12px;border:1px solid rgba(34,48,74,.75);border-radius:16px;background:rgba(17,28,51,.45)}
-    .kpiLabel{font-size:12px;color:var(--muted)}
-    .kpiValue{font-size:22px;font-weight:900;margin-top:4px}
-    .kpiHelp{font-size:12px;color:var(--muted);margin-top:4px}
-    .filters,.quickActions,.manageTools,.settingsGrid,.statsGrid,.dashGrid,.historyGrid{display:grid;gap:10px}
-    .row2,.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    @media(max-width:980px){.row2,.grid2{grid-template-columns:1fr}}
-    .input,.select,.textarea{width:100%;background:rgba(8,12,22,.62);border:1px solid rgba(34,48,74,.92);color:var(--text);border-radius:13px;padding:10px 12px;outline:none}
-    .textarea{min-height:110px;resize:vertical}
-    .input:focus,.select:focus,.textarea:focus,.btn:focus,.iconBtn:focus,.tab:focus{box-shadow:0 0 0 3px rgba(124,58,237,.25)}
-    .label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
-    .muted{color:var(--muted);font-size:12px}
-    .tiny{font-size:12px}
-    .hint{font-size:13px;color:#d0d7e4;line-height:1.45}
-    .pill,.balancePill,.tag{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(34,48,74,.85);background:rgba(17,28,51,.55);border-radius:999px;padding:5px 10px;font-size:12px}
-    .balanceRow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
-    .balanceLabel{font-size:13px;color:var(--muted);font-weight:700}
-    .chips{display:flex;gap:8px;flex-wrap:wrap}
-    .chip{border:1px solid rgba(34,48,74,.85);background:rgba(17,28,51,.5);color:var(--text);padding:8px 10px;border-radius:999px;cursor:pointer;font-weight:800;font-size:12px}
-    .bucket,.list,.manageList{display:grid;gap:10px}
-    .bucketHeader{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid rgba(34,48,74,.75);border-radius:16px;background:rgba(17,28,51,.38);padding:10px}
-    .bucketTitle,.subTitle{font-weight:900;letter-spacing:.2px}
-    .subcard{border:1px solid rgba(34,48,74,.78);border-radius:16px;background:rgba(17,28,51,.36);padding:12px}
-    .weekGrid{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:10px;overflow:auto;padding-bottom:6px}
-    .weekStats,.historyGrid,.dashGrid,.statsGrid,.settingsGrid{grid-template-columns:1fr 1fr}
-    @media(max-width:980px){.weekStats,.historyGrid,.dashGrid,.statsGrid,.settingsGrid{grid-template-columns:1fr}}
-    .chartWrap{border:1px dashed rgba(34,48,74,.8);border-radius:14px;padding:10px;overflow:auto}
-    .manageForm{padding:12px;border-radius:16px;border:1px solid rgba(34,48,74,.78);background:rgba(17,28,51,.3)}
-    .manageItem{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:12px;border-radius:16px;border:1px solid rgba(34,48,74,.78);background:rgba(17,28,51,.36)}
-    .manageName{font-weight:900}
-    .manageMeta{color:var(--muted);font-size:12px;margin-top:2px}
-    .settingsRow{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .srOnly{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-    @media(max-width:720px){.topbar{flex-direction:column;align-items:stretch}.topbarActions{flex-direction:column;align-items:stretch}.tabs{width:100%}}
-    @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+
+    .cardHeader{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+      margin-bottom:10px;
+      flex-wrap:wrap;
+    }
+
+    .mini{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .hidden{ display:none !important; }
+
+    .divider{
+      height:1px;
+      background:rgba(34,48,74,.85);
+      margin:12px 0;
+    }
+
+    .footer{
+      margin-top:auto;
+      padding:12px 14px;
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      color:var(--muted);
+      flex-wrap:wrap;
+    }
+
+    .skipLink{
+      position:absolute;
+      left:-9999px;
+      top:auto;
+      width:1px;
+      height:1px;
+      overflow:hidden;
+    }
+
+    .skipLink:focus{
+      left:12px;
+      top:12px;
+      width:auto;
+      height:auto;
+      z-index:9999;
+      background:#111c33;
+      color:#fff;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(124,58,237,.6);
+    }
+
+    .noscript{
+      margin:14px;
+      border:1px solid rgba(239,68,68,.5);
+      background:rgba(239,68,68,.08);
+      padding:12px;
+      border-radius:16px;
+    }
+
+    .cssFail{
+      position:sticky;
+      top:0;
+      z-index:9999;
+      background:rgba(239,68,68,.12);
+      border-bottom:1px solid rgba(239,68,68,.35);
+      padding:10px 14px;
+      font-size:13px;
+      color:#ffd6d6;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:space-between;
+    }
+
+    .cssFail b{ color:#fff; }
+
+    .cssFail .miniBtn{
+      border:1px solid rgba(239,68,68,.4);
+      background:rgba(239,68,68,.12);
+      color:#fff;
+      border-radius:12px;
+      padding:8px 10px;
+      font-weight:850;
+      cursor:pointer;
+    }
+
+    .toastRegion{
+      position:fixed;
+      right:14px;
+      bottom:14px;
+      z-index:1000;
+      display:grid;
+      gap:10px;
+      pointer-events:none;
+    }
+
+    .modalOverlay{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.52);
+      z-index:1200;
+      display:grid;
+      place-items:center;
+      padding:16px;
+    }
+
+    .modal{
+      width:min(760px,100%);
+      background:rgba(15,23,42,.98);
+      border:1px solid rgba(34,48,74,.85);
+      border-radius:22px;
+      box-shadow:0 30px 80px rgba(0,0,0,.5);
+      overflow:hidden;
+    }
+
+    .modalHeader,.modalFooter{
+      padding:14px 16px;
+      border-bottom:1px solid rgba(34,48,74,.75);
+    }
+
+    .modalFooter{
+      border-bottom:none;
+      border-top:1px solid rgba(34,48,74,.75);
+    }
+
+    .modalBody{ padding:16px; }
+
+    .kpis{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:10px;
+    }
+
+    .kpi{
+      padding:10px 12px;
+      border:1px solid rgba(34,48,74,.75);
+      border-radius:16px;
+      background:rgba(17,28,51,.45);
+    }
+
+    .kpiLabel{ font-size:12px; color:var(--muted); }
+    .kpiValue{ font-size:22px; font-weight:900; margin-top:4px; }
+    .kpiHelp{ font-size:12px; color:var(--muted); margin-top:4px; }
+
+    .filters,.quickActions,.manageTools,.settingsGrid,.statsGrid,.dashGrid,.historyGrid{
+      display:grid;
+      gap:10px;
+    }
+
+    .row2,.grid2{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+    }
+
+    .agendaShell{
+      display:grid;
+      grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);
+      gap:14px;
+      align-items:start;
+    }
+
+    .agendaCalendarWrap,
+    .agendaDetailWrap,
+    .agendaScheduleWrap{
+      border:1px solid rgba(34,48,74,.78);
+      border-radius:16px;
+      background:rgba(17,28,51,.36);
+      padding:12px;
+    }
+
+    .agendaDetailStack{
+      display:grid;
+      gap:12px;
+    }
+
+    .input,.select,.textarea{
+      width:100%;
+      background:rgba(8,12,22,.62);
+      border:1px solid rgba(34,48,74,.92);
+      color:var(--text);
+      border-radius:13px;
+      padding:10px 12px;
+      outline:none;
+    }
+
+    .textarea{
+      min-height:110px;
+      resize:vertical;
+    }
+
+    .input:focus,.select:focus,.textarea:focus,.btn:focus,.iconBtn:focus,.tab:focus,.profileBtn:focus{
+      box-shadow:0 0 0 3px rgba(124,58,237,.25);
+    }
+
+    .label{
+      display:block;
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:6px;
+    }
+
+    .muted{ color:var(--muted); font-size:12px; }
+    .tiny{ font-size:12px; }
+
+    .hint{
+      font-size:13px;
+      color:#d0d7e4;
+      line-height:1.45;
+    }
+
+    .pill,.balancePill,.tag{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      border:1px solid rgba(34,48,74,.85);
+      background:rgba(17,28,51,.55);
+      border-radius:999px;
+      padding:5px 10px;
+      font-size:12px;
+    }
+
+    .balanceRow{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .balanceLabel{
+      font-size:13px;
+      color:var(--muted);
+      font-weight:700;
+    }
+
+    .chips{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+
+    .chip{
+      border:1px solid rgba(34,48,74,.85);
+      background:rgba(17,28,51,.5);
+      color:var(--text);
+      padding:8px 10px;
+      border-radius:999px;
+      cursor:pointer;
+      font-weight:800;
+      font-size:12px;
+    }
+
+    .bucket,.list,.manageList{
+      display:grid;
+      gap:10px;
+    }
+
+    .bucketHeader{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      border:1px solid rgba(34,48,74,.75);
+      border-radius:16px;
+      background:rgba(17,28,51,.38);
+      padding:10px;
+    }
+
+    .bucketTitle,.subTitle{
+      font-weight:900;
+      letter-spacing:.2px;
+    }
+
+    .subcard{
+      border:1px solid rgba(34,48,74,.78);
+      border-radius:16px;
+      background:rgba(17,28,51,.36);
+      padding:12px;
+    }
+
+    .weekGrid{
+      display:grid;
+      grid-template-columns:repeat(7,minmax(120px,1fr));
+      gap:10px;
+      overflow:auto;
+      padding-bottom:6px;
+    }
+
+    .weekStats,.historyGrid,.dashGrid,.statsGrid,.settingsGrid{
+      grid-template-columns:1fr 1fr;
+    }
+
+    .chartWrap{
+      border:1px dashed rgba(34,48,74,.8);
+      border-radius:14px;
+      padding:10px;
+      overflow:auto;
+    }
+
+    .manageForm{
+      padding:12px;
+      border-radius:16px;
+      border:1px solid rgba(34,48,74,.78);
+      background:rgba(17,28,51,.3);
+    }
+
+    .manageItem{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:center;
+      padding:12px;
+      border-radius:16px;
+      border:1px solid rgba(34,48,74,.78);
+      background:rgba(17,28,51,.36);
+    }
+
+    .manageName{ font-weight:900; }
+    .manageMeta{ color:var(--muted); font-size:12px; margin-top:2px; }
+
+    .settingsRow{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    .srOnly{
+      position:absolute!important;
+      width:1px;
+      height:1px;
+      padding:0;
+      margin:-1px;
+      overflow:hidden;
+      clip:rect(0,0,0,0);
+      white-space:nowrap;
+      border:0;
+    }
+
+    @media (max-width:1100px){
+      .agendaShell{
+        grid-template-columns:1fr;
+      }
+    }
+
+    @media (max-width:980px){
+      .layout{ grid-template-columns:1fr; }
+      .sep{ display:none; }
+      .kpis,
+      .row2,
+      .grid2,
+      .weekStats,
+      .historyGrid,
+      .dashGrid,
+      .statsGrid,
+      .settingsGrid{
+        grid-template-columns:1fr;
+      }
+    }
+
+    @media (max-width:720px){
+      .topbar{
+        flex-direction:column;
+        align-items:stretch;
+      }
+
+      .brand{
+        width:100%;
+      }
+
+      .profileToggle{
+        width:100%;
+        justify-content:center;
+      }
+
+      .topbarActions{
+        flex-direction:column;
+        align-items:stretch;
+      }
+
+      .tabs{
+        width:100%;
+      }
+
+      .topbarUtility{
+        width:100%;
+        justify-content:stretch;
+      }
+
+      .topbarUtility .btn{
+        flex:1 1 auto;
+      }
+    }
+
+    @media (prefers-reduced-motion:reduce){
+      *{
+        scroll-behavior:auto!important;
+        transition:none!important;
+      }
+    }
   </style>
 </head>
 
@@ -128,11 +629,13 @@
   <a class="skipLink" href="#main">Saltar al contenido</a>
 
   <noscript>
-    <div class="noscript">Esta app necesita JavaScript para funcionar. La tecnología moderna, siempre humilde 🙃</div>
+    <div class="noscript">
+      Esta app necesita JavaScript para funcionar. Increíble descubrimiento de la ingeniería moderna 🙃
+    </div>
   </noscript>
 
   <div id="cssFail" class="cssFail hidden" role="status" aria-live="polite">
-    <div>⚠️ <b>No cargó styles.css</b>. Estás viendo el modo "sin ropa". Revisa ruta u hosting.</div>
+    <div>⚠️ <b>No cargó styles.css</b>. Estás viendo el modo “sin ropa”. Revisa ruta u hosting.</div>
     <button class="miniBtn" id="btnCssRetry" type="button" title="Reintentar cargar CSS">Reintentar</button>
   </div>
 
@@ -158,26 +661,30 @@
         <div class="logo" aria-hidden="true">B</div>
         <div class="brandText">
           <div class="title">Bitácora</div>
-          <div class="subtitle">Todo lo que queremos sostener, sin dejarlo perder</div>
+          <div class="subtitle">Calendario, horario, proceso y vida real sin volver esto una planilla con ego</div>
         </div>
       </div>
 
-      <!-- ── Perfil toggle ── -->
       <div id="profileToggle" class="profileToggle" role="group" aria-label="Seleccionar perfil">
-        <button class="profileBtn isActive" id="btnProfileAlek" type="button" data-profile="alek">Alek</button>
-        <button class="profileBtn" id="btnProfileCata" type="button" data-profile="cata">Cata</button>
+        <button class="profileBtn isActive" id="btnProfileAlek" type="button" data-profile="alek" aria-pressed="true">Alek</button>
+        <button class="profileBtn" id="btnProfileCata" type="button" data-profile="cata" aria-pressed="false">Cata</button>
       </div>
 
       <div class="topbarActions">
         <nav class="tabs" aria-label="Vistas principales" role="tablist">
-          <button class="tab isActive" id="btnToday"   type="button" role="tab" aria-selected="true"  aria-controls="viewToday">Hoy</button>
-          <button class="tab"          id="btnAgenda"  type="button" role="tab" aria-selected="false" aria-controls="viewAgenda">Agenda</button>
-          <button class="tab"          id="btnWeek"    type="button" role="tab" aria-selected="false" aria-controls="viewWeek">Semana</button>
-          <button class="tab"          id="btnHistory" type="button" role="tab" aria-selected="false" aria-controls="viewHistory">Histórico</button>
-          <button class="tab"          id="btnStats"   type="button" role="tab" aria-selected="false" aria-controls="viewStats">Estadísticas</button>
-          <button class="tab"          id="btnManage"  type="button" role="tab" aria-selected="false" aria-controls="viewManage">Actividades</button>
-          <button class="tab"          id="btnSettings"type="button" role="tab" aria-selected="false" aria-controls="viewSettings">Ajustes</button>
+          <button class="tab isActive" id="btnToday" type="button" role="tab" aria-selected="true" aria-controls="viewToday">Hoy</button>
+          <button class="tab" id="btnAgenda" type="button" role="tab" aria-selected="false" aria-controls="viewAgenda">Agenda</button>
+          <button class="tab" id="btnWeek" type="button" role="tab" aria-selected="false" aria-controls="viewWeek">Semana</button>
+          <button class="tab" id="btnHistory" type="button" role="tab" aria-selected="false" aria-controls="viewHistory">Histórico</button>
+          <button class="tab" id="btnStats" type="button" role="tab" aria-selected="false" aria-controls="viewStats">Estadísticas</button>
+          <button class="tab" id="btnManage" type="button" role="tab" aria-selected="false" aria-controls="viewManage">Actividades</button>
+          <button class="tab" id="btnSettings" type="button" role="tab" aria-selected="false" aria-controls="viewSettings">Ajustes</button>
         </nav>
+
+        <div class="topbarUtility" aria-label="Acciones rápidas globales">
+          <button class="btn ghost" id="btnTodayQuick" type="button" title="Volver a hoy visualmente">Ir a hoy</button>
+          <button class="btn" id="btnExport2" type="button" title="Exportar respaldo JSON">Exportar JSON</button>
+        </div>
       </div>
     </header>
 
@@ -185,14 +692,17 @@
       <aside class="side" aria-label="Panel lateral">
         <section class="card" aria-labelledby="dateTitle">
           <div class="cardHeader">
-            <h2 id="dateTitle">Hoy</h2>
+            <div>
+              <h2 id="dateTitle">Hoy</h2>
+              <div class="muted" id="selectedDayMeta">Día activo de la bitácora</div>
+            </div>
             <div class="mini" role="group" aria-label="Navegación por día">
               <button class="iconBtn" id="prevDay" type="button" title="Día anterior" aria-label="Día anterior">◀</button>
               <button class="iconBtn" id="nextDay" type="button" title="Día siguiente" aria-label="Día siguiente">▶</button>
             </div>
           </div>
 
-          <div class="kpis kpis3" role="status" aria-live="polite">
+          <div class="kpis" role="status" aria-live="polite">
             <div class="kpi">
               <div class="kpiLabel">Cumplimiento</div>
               <div class="kpiValue" id="kpiDaily">0%</div>
@@ -253,12 +763,12 @@
             </div>
 
             <div class="chips" role="group" aria-label="Opciones de visualización">
-              <button class="chip" id="chipPending"  type="button" aria-pressed="true" title="Ver pendientes primero">Pendientes primero</button>
+              <button class="chip" id="chipPending" type="button" aria-pressed="true" title="Ver pendientes primero">Pendientes primero</button>
               <button class="chip" id="chipShowDone" type="button" aria-pressed="true" title="Mostrar también lo ya hecho">Mostrar hechas</button>
             </div>
 
             <div class="hint tiny">
-              Esto no es una app para castigarse. Es una bitácora para ver qué sí están sosteniendo, qué están soltando y qué merece volver a entrar.
+              No es para castigarse. Es para ver qué sí están sosteniendo, qué se cayó y qué merece espacio real en el día.
             </div>
           </div>
         </section>
@@ -273,20 +783,23 @@
         </section>
 
         <section class="card" aria-label="Acciones rápidas">
-          <div class="cardHeader"><h3>Acciones rápidas</h3></div>
+          <div class="cardHeader">
+            <h3>Acciones rápidas</h3>
+          </div>
           <div class="quickActions">
-            <button class="btn ghost" id="btnUncheckAll"   type="button" title="Desmarcar diarias visibles">Desmarcar</button>
-            <button class="btn ghost" id="btnCheckAll"     type="button" title="Marcar diarias visibles">Marcar</button>
+            <button class="btn ghost" id="btnUncheckAll" type="button" title="Desmarcar diarias visibles">Desmarcar</button>
+            <button class="btn ghost" id="btnCheckAll" type="button" title="Marcar diarias visibles">Marcar</button>
             <button class="btn ghost" id="btnResetFilters" type="button" title="Volver a mostrar todo">Reset filtros</button>
           </div>
           <div class="divider" aria-hidden="true"></div>
-          <div class="hint">La idea no es hacerlo todo siempre. La idea es no perder de vista lo que importa. Milagros no hace ni el HTML.</div>
+          <div class="hint">
+            La idea no es hacerlo todo siempre. La idea es no perder de vista lo que importa. Qué concepto tan revolucionario.
+          </div>
         </section>
       </aside>
 
       <section class="content" aria-label="Contenido principal">
-
-        <!-- ════ HOY ════ -->
+        <!-- HOY -->
         <section class="card" id="viewToday" role="tabpanel" aria-labelledby="btnToday">
           <div class="cardHeader">
             <div>
@@ -317,7 +830,7 @@
           </div>
         </section>
 
-        <!-- ════ AGENDA ════ -->
+        <!-- AGENDA -->
         <section class="card hidden" id="viewAgenda" role="tabpanel" aria-labelledby="btnAgenda">
           <div class="cardHeader">
             <div>
@@ -330,16 +843,33 @@
             </div>
           </div>
 
-          <div id="agendaCalendar"></div>
+          <div class="agendaShell">
+            <div class="agendaCalendarWrap" aria-label="Calendario mensual">
+              <div class="subTitle" style="margin-bottom:10px;">Calendario</div>
+              <div id="agendaCalendar"></div>
+            </div>
 
-          <div class="divider" aria-hidden="true"></div>
+            <div class="agendaDetailStack">
+              <div class="agendaDetailWrap" aria-label="Detalle del día">
+                <div class="subTitle" style="margin-bottom:10px;">Detalle del día</div>
+                <div id="agendaDayDetail">
+                  <div class="hint tiny">Selecciona un día del calendario para ver su detalle.</div>
+                </div>
+              </div>
 
-          <div id="agendaDayDetail">
-            <div class="hint tiny">Selecciona un día del calendario para ver su detalle.</div>
+              <div class="agendaScheduleWrap" aria-label="Horario del día">
+                <div class="subTitle" style="margin-bottom:10px;">Horario</div>
+                <div id="agendaSchedule">
+                  <div class="hint tiny">
+                    Acá pueden construirse los bloques horarios del día con incrementos de 30 min, en vez de tiempos fijos tallados en piedra.
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
-        <!-- ════ SEMANA ════ -->
+        <!-- SEMANA -->
         <section class="card hidden" id="viewWeek" role="tabpanel" aria-labelledby="btnWeek">
           <div class="cardHeader">
             <div>
@@ -353,7 +883,9 @@
           </div>
 
           <div class="weekGrid" id="weekGrid"></div>
+
           <div class="divider" aria-hidden="true"></div>
+
           <div class="weekStats">
             <div class="subcard">
               <div class="subTitle">Por día</div>
@@ -364,14 +896,16 @@
               <div id="weekByCategory"></div>
             </div>
           </div>
+
           <div class="divider" aria-hidden="true"></div>
+
           <div class="subcard">
             <div class="subTitle">Lectura rápida</div>
             <div class="hint tiny" id="weekInsight">Acá puede aparecer una lectura útil sobre la semana.</div>
           </div>
         </section>
 
-        <!-- ════ HISTÓRICO ════ -->
+        <!-- HISTÓRICO -->
         <section class="card hidden" id="viewHistory" role="tabpanel" aria-labelledby="btnHistory">
           <div class="cardHeader">
             <div>
@@ -394,6 +928,7 @@
               <div class="subTitle">Resumen del período</div>
               <div id="historySummary"><div class="hint tiny">Acá va un resumen útil del período seleccionado.</div></div>
             </div>
+
             <div class="subcard">
               <div class="subTitle">Tendencia</div>
               <div class="chartWrap">
@@ -401,18 +936,22 @@
               </div>
               <div class="hint tiny" id="historyTrendHint">—</div>
             </div>
+
             <div class="subcard">
               <div class="subTitle">Calendario histórico</div>
               <div id="historyCalendar"><div class="hint tiny">Mapa tipo contribuciones: días fuertes, medios y flojos.</div></div>
             </div>
+
             <div class="subcard">
               <div class="subTitle">Días destacados</div>
               <div id="historyHighlights"><div class="hint tiny">Mejor día, peor día, días vacíos, días muy cargados.</div></div>
             </div>
+
             <div class="subcard">
               <div class="subTitle">Línea de tiempo</div>
               <div id="historyTimeline"><div class="hint tiny">Lista cronológica de días con notas y cumplimientos.</div></div>
             </div>
+
             <div class="subcard">
               <div class="subTitle">Actividades más constantes</div>
               <div id="historyTopActivities"><div class="hint tiny">Qué cosas sí han logrado sostener en el tiempo.</div></div>
@@ -420,7 +959,7 @@
           </div>
         </section>
 
-        <!-- ════ ESTADÍSTICAS ════ -->
+        <!-- ESTADÍSTICAS -->
         <section class="card hidden" id="viewStats" role="tabpanel" aria-labelledby="btnStats">
           <div class="cardHeader">
             <div>
@@ -443,16 +982,19 @@
               <div class="subTitle">Consistencia</div>
               <div id="statsConsistency"><div class="hint tiny">Rachas, promedio diario, días activos.</div></div>
             </div>
+
             <div class="subcard">
               <div class="subTitle">Hechas vs pendientes</div>
               <div class="chartWrap">
                 <canvas id="chartDone" width="800" height="280" aria-label="Gráfico de hechas vs pendientes"></canvas>
               </div>
             </div>
+
             <div class="subcard">
               <div class="subTitle">Por categoría</div>
               <div id="statsByCategory"><div class="hint tiny">Para ver si la vida se les fue solo en trabajo.</div></div>
             </div>
+
             <div class="subcard">
               <div class="subTitle">Carga vs descanso</div>
               <div class="chartWrap">
@@ -460,6 +1002,7 @@
               </div>
               <div class="hint tiny" id="chartBalanceHint">—</div>
             </div>
+
             <div class="subcard">
               <div class="subTitle">Energía</div>
               <div class="chartWrap">
@@ -467,14 +1010,17 @@
               </div>
               <div class="hint tiny" id="chartEnergyHint">—</div>
             </div>
+
             <div class="subcard">
               <div class="subTitle">Actividades más olvidadas</div>
               <div id="statsAvoided"><div class="hint tiny">No para regañarse. Para detectar qué siempre queda de últimas.</div></div>
             </div>
+
             <div class="subcard">
               <div class="subTitle">Top actividades</div>
               <div id="statsTopActivities"><div class="hint tiny">Las que sí tienen presencia real en su vida.</div></div>
             </div>
+
             <div class="subcard">
               <div class="subTitle">Lectura general</div>
               <div id="statsNarrative"><div class="hint tiny">Conclusión automática del período.</div></div>
@@ -482,7 +1028,7 @@
           </div>
         </section>
 
-        <!-- ════ ACTIVIDADES ════ -->
+        <!-- ACTIVIDADES -->
         <section class="card hidden" id="viewManage" role="tabpanel" aria-labelledby="btnManage">
           <div class="cardHeader">
             <div>
@@ -505,6 +1051,7 @@
                 <input id="mCategory" class="input" placeholder="Ej: Educación, Salud..." />
               </div>
             </div>
+
             <div class="grid2">
               <div>
                 <label class="label" for="mType">Modo</label>
@@ -518,6 +1065,7 @@
                 <input id="mSub" class="input" placeholder="Ej: Videojuegos, Francés..." />
               </div>
             </div>
+
             <div class="grid2">
               <div>
                 <label class="label" for="mEnergy">Energía</label>
@@ -530,8 +1078,8 @@
               </div>
               <div style="display:flex;align-items:flex-end;">
                 <div class="mini" style="justify-content:flex-end;width:100%">
-                  <button class="btn ghost" id="btnCancelEdit"    type="button">Cancelar</button>
-                  <button class="btn"       id="btnSaveActivity"  type="button">Guardar</button>
+                  <button class="btn ghost" id="btnCancelEdit" type="button">Cancelar</button>
+                  <button class="btn" id="btnSaveActivity" type="button">Guardar</button>
                 </div>
               </div>
             </div>
@@ -557,15 +1105,18 @@
           <div class="divider" aria-hidden="true"></div>
           <div class="manageList" id="manageList"></div>
           <div class="divider" aria-hidden="true"></div>
-          <div class="hint tiny">Esta lista no es para "ser más eficientes" porque sí. Es para que la vida no se les vuelva una sola categoría con ínfulas de prioridad.</div>
+
+          <div class="hint tiny">
+            Esta lista no es para “ser más eficientes” porque sí. Es para que la vida no se les vuelva una sola categoría haciéndose la importante.
+          </div>
         </section>
 
-        <!-- ════ AJUSTES ════ -->
+        <!-- AJUSTES -->
         <section class="card hidden" id="viewSettings" role="tabpanel" aria-labelledby="btnSettings">
           <div class="cardHeader">
             <div>
               <h2>Ajustes</h2>
-              <div class="muted">Respaldo, exportación y mantenimiento</div>
+              <div class="muted">Respaldo, importación, exportación y mantenimiento</div>
             </div>
           </div>
 
@@ -573,11 +1124,12 @@
             <div class="subcard">
               <div class="subTitle">Backups</div>
               <div class="settingsRow">
-                <button class="btn" id="btnExport2" type="button">Exportar JSON</button>
                 <label class="btn ghost" for="importFile2" style="cursor:pointer;">Importar JSON</label>
                 <input id="importFile2" type="file" accept="application/json" hidden />
               </div>
-              <div class="hint tiny">Hacer backup antes de "probar una mejora rápida" evita tragedias bastante humanas.</div>
+              <div class="hint tiny">
+                El botón de exportar quedó arriba como acceso rápido. Porque esconderlo acá era una linda manera de que no lo usaran nunca.
+              </div>
             </div>
 
             <div class="subcard">
@@ -602,7 +1154,6 @@
             </div>
           </div>
         </section>
-
       </section>
     </main>
 
@@ -617,23 +1168,46 @@
 
   <script>
     (function () {
-      const link  = document.getElementById('appStyles');
-      const fail  = document.getElementById('cssFail');
+      const link = document.getElementById('appStyles');
+      const fail = document.getElementById('cssFail');
       const retry = document.getElementById('btnCssRetry');
-      function showFail() { if (fail) fail.classList.remove('hidden'); }
-      function hideFail() { if (fail) fail.classList.add('hidden'); }
-      if (link) { link.addEventListener('error', showFail); link.addEventListener('load', hideFail); }
+      const btnTodayQuick = document.getElementById('btnTodayQuick');
+
+      function showFail() {
+        if (fail) fail.classList.remove('hidden');
+      }
+
+      function hideFail() {
+        if (fail) fail.classList.add('hidden');
+      }
+
+      if (link) {
+        link.addEventListener('error', showFail);
+        link.addEventListener('load', hideFail);
+      }
+
       setTimeout(() => {
         try {
           const sheets = Array.from(document.styleSheets || []);
           const has = sheets.some(s => (s.href || '').includes('styles.css'));
           if (!has) showFail();
-        } catch (_) { showFail(); }
+        } catch (_) {
+          showFail();
+        }
       }, 700);
+
       if (retry && link) {
         retry.addEventListener('click', () => {
           const href = (link.getAttribute('href') || './styles.css').split('?')[0];
           link.setAttribute('href', href + '?v=' + Date.now());
+        });
+      }
+
+      if (btnTodayQuick) {
+        btnTodayQuick.addEventListener('click', () => {
+          const todayTab = document.getElementById('btnToday');
+          if (todayTab) todayTab.click();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         });
       }
     })();
