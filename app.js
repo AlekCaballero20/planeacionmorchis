@@ -295,6 +295,18 @@
     return DAY_START_HOUR * 60 + DAY_START_MINUTE;
   }
 
+  // Hora actual como "HH:MM"
+  function nowHHMM() {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+
+  // Valida y retorna "HH:MM" o null (cubre el formato antiguo `true`)
+  function parseDoneTime(val) {
+    if (typeof val === "string" && /^\d{2}:\d{2}$/.test(val)) return val;
+    return null;
+  }
+
   /* =========================================================
      Toast
   ========================================================= */
@@ -465,6 +477,7 @@
       if (!prof.cycle || typeof prof.cycle !== "object") prof.cycle = { weekStartISO: startOfWeekISO(todayISO()), done: {} };
       if (!prof.cycle.weekStartISO) prof.cycle.weekStartISO = startOfWeekISO(todayISO());
       if (!prof.cycle.done || typeof prof.cycle.done !== "object") prof.cycle.done = {};
+      if (!prof.cycle.doneAt || typeof prof.cycle.doneAt !== "object") prof.cycle.doneAt = {};
       prof.logs = migrateProfileLogs(prof.logs);
     });
 
@@ -477,6 +490,10 @@
 
   function saveDB() {
     localStorage.setItem(LS_KEY, JSON.stringify(db));
+    // Sync a Firebase en background (write-through)
+    if (window.BitacoraCloud?.ready) {
+      window.BitacoraCloud.save(db).catch(() => {});
+    }
   }
 
   function loadDB() {
@@ -541,6 +558,21 @@
     localStorage.setItem(LS_STATE, JSON.stringify(state));
   }
 
+  // Sincroniza desde Firebase al iniciar (no bloquea la UI)
+  async function syncFromCloud() {
+    if (!window.BitacoraCloud?.ready) return;
+    try {
+      const cloudData = await window.BitacoraCloud.load();
+      if (!cloudData) return;
+      db = migrateDB(cloudData);
+      localStorage.setItem(LS_KEY, JSON.stringify(db));
+      renderCurrentView();
+      console.log("[BitacoraCloud] Sincronizado desde la nube ✅");
+    } catch (e) {
+      console.warn("[BitacoraCloud] syncFromCloud error:", e);
+    }
+  }
+
   let db = loadDB();
   let state = loadState();
 
@@ -572,12 +604,14 @@
   function ensureCycleFor(refISO) {
     const pd = activeProfileData();
     const week = startOfWeekISO(refISO || todayISO());
-    if (!pd.cycle) pd.cycle = { weekStartISO: week, done: {} };
+    if (!pd.cycle) pd.cycle = { weekStartISO: week, done: {}, doneAt: {} };
     if (!pd.cycle.done || typeof pd.cycle.done !== "object") pd.cycle.done = {};
+    if (!pd.cycle.doneAt || typeof pd.cycle.doneAt !== "object") pd.cycle.doneAt = {};
     if (!pd.cycle.weekStartISO) pd.cycle.weekStartISO = week;
     if (pd.cycle.weekStartISO !== week) {
       pd.cycle.weekStartISO = week;
       pd.cycle.done = {};
+      pd.cycle.doneAt = {};
       saveDB();
     }
   }
@@ -606,19 +640,46 @@
     return !!(pd.cycle?.done?.[activity.id]);
   }
 
-  function setDoneFor(iso, activity, done) {
+  function setDoneFor(iso, activity, done, timeHHMM) {
     ensureDay(iso);
     ensureCycleFor(iso);
     const pd = activeProfileData();
+    const t = timeHHMM || nowHHMM();
 
     if (activity.type === "daily") {
-      if (done) pd.logs[iso].checksDaily[activity.id] = true;
+      if (done) pd.logs[iso].checksDaily[activity.id] = t;
       else delete pd.logs[iso].checksDaily[activity.id];
     } else {
-      if (done) pd.cycle.done[activity.id] = true;
-      else delete pd.cycle.done[activity.id];
+      if (done) {
+        pd.cycle.done[activity.id] = true;
+        pd.cycle.doneAt[activity.id] = t;
+      } else {
+        delete pd.cycle.done[activity.id];
+        delete pd.cycle.doneAt[activity.id];
+      }
     }
 
+    saveDB();
+  }
+
+  function getDoneTimeFor(iso, activity) {
+    const pd = activeProfileData();
+    if (activity.type === "daily") {
+      return parseDoneTime(pd.logs[iso]?.checksDaily?.[activity.id]);
+    }
+    return parseDoneTime(pd.cycle?.doneAt?.[activity.id]);
+  }
+
+  function setDoneTimeFor(iso, activity, timeHHMM) {
+    if (!isDoneFor(iso, activity)) return;
+    const pd = activeProfileData();
+    if (activity.type === "daily") {
+      ensureDay(iso);
+      pd.logs[iso].checksDaily[activity.id] = timeHHMM;
+    } else {
+      ensureCycleFor(iso);
+      pd.cycle.doneAt[activity.id] = timeHHMM;
+    }
     saveDB();
   }
 
@@ -902,25 +963,31 @@
       .map(a => ({
         activity: a,
         duration: getLoggedDuration(iso, a.id),
+        doneTime: getDoneTimeFor(iso, a),
       }))
-      .filter(x => x.duration > 0)
+      .filter(x => x.duration > 0 || x.doneTime)
       .sort((a, b) => {
+        // Primero por hora real si existe
+        if (a.doneTime && b.doneTime) return a.doneTime.localeCompare(b.doneTime);
+        if (a.doneTime) return -1;
+        if (b.doneTime) return 1;
+        // Fallback: por duración
         if (b.duration !== a.duration) return b.duration - a.duration;
         return a.activity.name.localeCompare(b.activity.name, "es");
       });
 
-    let cursor = dayBaseMinutes();
     return entries.map(entry => {
-      const start = cursor;
-      const end = cursor + entry.duration;
-      cursor = end;
-      return {
-        ...entry,
-        start,
-        end,
-        startText: toClock(start),
-        endText: toClock(end),
-      };
+      let startText = null;
+      let endText = null;
+
+      if (entry.doneTime) {
+        const [hh, mm] = entry.doneTime.split(":").map(Number);
+        const startMins = hh * 60 + mm;
+        startText = entry.doneTime;
+        endText = entry.duration > 0 ? toClock(startMins + entry.duration) : null;
+      }
+
+      return { ...entry, startText, endText };
     });
   }
 
@@ -1032,6 +1099,56 @@
   }
 
   /* =========================================================
+     Editar hora de actividad completada
+  ========================================================= */
+  function askEditTime(activity, iso) {
+    const current = getDoneTimeFor(iso, activity) || nowHHMM();
+    modalOpen({
+      title: `🕐 Hora — ${activity.name}`,
+      desc: "¿A qué hora hiciste esta actividad? Se usa para construir tu horario real del día.",
+      contentHTML: `
+        <div style="margin-top:8px">
+          <label class="label" for="timeEditInput">Hora</label>
+          <input id="timeEditInput" class="input" type="time" value="${escapeHTML(current)}"
+                 autofocus style="font-size:22px;text-align:center;width:100%" />
+          <div class="hint tiny" style="margin-top:8px">
+            Se guarda como referencia para tu horario diario.
+          </div>
+        </div>
+      `,
+      actions: [
+        { label: "Cancelar", kind: "ghost", onClick: () => { modalClose(); } },
+        {
+          label: "Guardar hora",
+          onClick: () => {
+            const val = document.getElementById("timeEditInput")?.value || "";
+            if (!/^\d{2}:\d{2}$/.test(val)) {
+              toast("Hora inválida", "warn");
+              return;
+            }
+            setDoneTimeFor(iso, activity, val);
+            modalClose();
+            renderCurrentView();
+            toast(`Hora guardada: ${val} ✅`, "ok");
+          },
+        },
+      ],
+    });
+
+    setTimeout(() => {
+      const inp = document.getElementById("timeEditInput");
+      if (inp) {
+        on(inp, "keydown", e => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            $(".btn:not(.ghost)", els.modalActions)[0]?.click();
+          }
+        });
+      }
+    }, 50);
+  }
+
+  /* =========================================================
      Duration modal / controls
   ========================================================= */
   function askDuration(activity, iso) {
@@ -1110,6 +1227,7 @@
       const typeLabel = a.type === "daily" ? "Diaria" : "Rotación semanal";
       const loggedDur = getLoggedDuration(iso, a.id);
       const durLabel = loggedDur ? fmtDurationMin(loggedDur) : null;
+      const doneTime = checked ? getDoneTimeFor(iso, a) : null;
 
       return `
         <div class="item ${checked ? "isDone" : ""}">
@@ -1122,6 +1240,10 @@
               <span class="tag">${escapeHTML(typeLabel)}</span>
               ${a.energy ? `<span class="tag">${escapeHTML(energyLabel(a.energy))}</span>` : ""}
               ${durLabel ? `<span class="tag tagTime">⏱ ${escapeHTML(durLabel)}</span>` : `<span class="tag tagNoTime">sin tiempo</span>`}
+              ${doneTime
+                ? `<span class="tag tagDoneTime" data-action="edit-time" data-id="${escapeHTML(a.id)}" title="Toca para editar la hora">🕐 ${escapeHTML(doneTime)} ✏️</span>`
+                : (checked ? `<span class="tag tagNoTime" data-action="edit-time" data-id="${escapeHTML(a.id)}" title="Añadir hora">+ hora</span>` : "")
+              }
             </div>
             ${checked ? `
               <div class="durationControls" style="margin-top:10px;">
@@ -1159,6 +1281,16 @@
     });
 
     on(container, "click", e => {
+      // Editar hora
+      const timeBadge = e.target.closest("[data-action='edit-time']");
+      if (timeBadge) {
+        const id = timeBadge.dataset.id;
+        const a = aById(id);
+        if (a) askEditTime(a, state.dateISO);
+        return;
+      }
+
+      // Ajustar duración
       const btn = e.target.closest(".durationBtn");
       if (!btn) return;
       const id = btn.dataset.id;
@@ -1489,18 +1621,21 @@
 
     els.agendaSchedule.innerHTML = `
       <div class="muted" style="font-size:12px;margin-bottom:10px;">
-        Horario construido automáticamente desde las actividades con duración registrada · Total: ${escapeHTML(fmtDurationMin(total))}
+        Horario real del día — basado en la hora en que marcaste cada actividad · Total: ${escapeHTML(fmtDurationMin(total))}
       </div>
       <div class="scheduleTimeline">
         ${schedule.map(item => `
           <div class="scheduleSlot">
-            <div class="scheduleTime">${escapeHTML(item.startText)} - ${escapeHTML(item.endText)}</div>
+            <div class="scheduleTime">${item.startText
+              ? escapeHTML(item.startText) + (item.endText ? ` → ${escapeHTML(item.endText)}` : "")
+              : `<span style="opacity:.5">sin hora</span>`
+            }</div>
             <div class="scheduleBlock">
               <div class="scheduleBlockTitle">${escapeHTML(item.activity.name)}</div>
               <div class="scheduleBlockMeta">
                 <span class="tag">${escapeHTML(item.activity.category)}</span>
                 ${item.activity.subcategory ? `<span class="tag">${escapeHTML(item.activity.subcategory)}</span>` : ""}
-                <span class="tag tagTime">${escapeHTML(fmtDurationMin(item.duration))}</span>
+                ${item.duration ? `<span class="tag tagTime">${escapeHTML(fmtDurationMin(item.duration))}</span>` : ""}
               </div>
             </div>
           </div>
@@ -1895,6 +2030,7 @@
               });
 
               if (prof.cycle?.done?.[id]) delete prof.cycle.done[id];
+              if (prof.cycle?.doneAt?.[id]) delete prof.cycle.doneAt[id];
             });
 
             saveDB();
@@ -2028,9 +2164,10 @@
             state = loadState();
             saveDB();
             saveState();
+            if (window.BitacoraCloud?.ready) window.BitacoraCloud.wipe().catch(() => {});
             modalClose();
             initAfterDataReset();
-            toast("Datos borrados localmente 🧼", "ok");
+            toast("Datos borrados local y en la nube 🧼", "ok");
           },
         },
       ],
@@ -2039,7 +2176,7 @@
 
   function renderSettings() {
     if (els.appInfo) {
-      els.appInfo.textContent = `Offline · localStorage · esquema v${DB_SCHEMA} · bloques de ${DURATION_STEP} min`;
+      els.appInfo.textContent = `Firebase + localStorage · esquema v${DB_SCHEMA} · bloques de ${DURATION_STEP} min · ${window.BitacoraCloud?.ready ? "☁️ nube activa" : "📴 offline"}`;
     }
   }
 
@@ -2314,6 +2451,7 @@
     rebuildCategoryFilter();
     bindEvents();
     renderCurrentView();
+    syncFromCloud(); // no bloquea, carga desde Firebase en background
   }
 
   init();
