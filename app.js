@@ -98,6 +98,7 @@
     nextDay: $("#nextDay"),
 
     todaySub: $("#todaySub"),
+    timeTrackerWrap: $("#timeTrackerWrap"),
     pendingList: $("#pendingList"),
     doneList: $("#doneList"),
     pendingCount: $("#pendingCount"),
@@ -447,11 +448,23 @@
       if (!day.checksDaily || typeof day.checksDaily !== "object") day.checksDaily = {};
       if (typeof day.notes !== "string") day.notes = String(day.notes || "");
       if (!day.durations || typeof day.durations !== "object") day.durations = {};
+      if (!Array.isArray(day.entries)) day.entries = [];
 
       Object.keys(day.durations).forEach(id => {
         day.durations[id] = ensureStep(day.durations[id], DURATION_STEP);
         if (!day.durations[id]) delete day.durations[id];
       });
+
+      day.entries = day.entries
+        .filter(x => x && typeof x === "object" && x.activityId)
+        .map(x => ({
+          id: x.id || uid(),
+          activityId: String(x.activityId),
+          minutes: ensureStep(x.minutes, DURATION_STEP),
+          time: parseDoneTime(x.time),
+          createdAt: safeNumber(x.createdAt, Date.now()),
+        }))
+        .filter(x => x.minutes > 0);
     });
     return logs;
   }
@@ -594,11 +607,12 @@
   ========================================================= */
   function ensureDay(iso) {
     const pd = activeProfileData();
-    if (!pd.logs[iso]) pd.logs[iso] = { checksDaily: {}, notes: "", durations: {} };
+    if (!pd.logs[iso]) pd.logs[iso] = { checksDaily: {}, notes: "", durations: {}, entries: [] };
     const day = pd.logs[iso];
     if (!day.checksDaily || typeof day.checksDaily !== "object") day.checksDaily = {};
     if (typeof day.notes !== "string") day.notes = String(day.notes || "");
     if (!day.durations || typeof day.durations !== "object") day.durations = {};
+    if (!Array.isArray(day.entries)) day.entries = [];
   }
 
   function ensureCycleFor(refISO) {
@@ -702,6 +716,58 @@
   function getLoggedDuration(iso, actId) {
     const pd = activeProfileData();
     return ensureStep(pd.logs[iso]?.durations?.[actId] || 0, DURATION_STEP);
+  }
+
+  function getTimeEntries(iso, actId = null) {
+    const pd = activeProfileData();
+    const all = Array.isArray(pd.logs[iso]?.entries) ? pd.logs[iso].entries : [];
+    const filtered = actId ? all.filter(x => x.activityId === actId) : all.slice();
+    return filtered.sort((a, b) => {
+      if (a.time && b.time) return a.time.localeCompare(b.time);
+      if (a.time) return -1;
+      if (b.time) return 1;
+      return safeNumber(a.createdAt, 0) - safeNumber(b.createdAt, 0);
+    });
+  }
+
+  function addTimeEntry(iso, activity, minutes, timeHHMM) {
+    const normalized = ensureStep(minutes, DURATION_STEP);
+    if (!normalized) return;
+    ensureDay(iso);
+    const pd = activeProfileData();
+    const day = pd.logs[iso];
+    const parsedTime = parseDoneTime(timeHHMM);
+    day.entries.push({
+      id: uid(),
+      activityId: activity.id,
+      minutes: normalized,
+      time: parsedTime,
+      createdAt: Date.now(),
+    });
+    const current = getLoggedDuration(iso, activity.id);
+    day.durations[activity.id] = current + normalized;
+
+    if (!isDoneFor(iso, activity)) setDoneFor(iso, activity, true, parsedTime || nowHHMM());
+    else if (parsedTime && !getDoneTimeFor(iso, activity)) setDoneTimeFor(iso, activity, parsedTime);
+
+    saveDB();
+  }
+
+  function removeTimeEntry(iso, entryId) {
+    ensureDay(iso);
+    const pd = activeProfileData();
+    const day = pd.logs[iso];
+    const idx = day.entries.findIndex(x => x.id === entryId);
+    if (idx < 0) return false;
+    const entry = day.entries[idx];
+    day.entries.splice(idx, 1);
+
+    const current = getLoggedDuration(iso, entry.activityId);
+    const next = Math.max(0, current - ensureStep(entry.minutes, DURATION_STEP));
+    if (next > 0) day.durations[entry.activityId] = next;
+    else delete day.durations[entry.activityId];
+    saveDB();
+    return true;
   }
 
   function getFilteredActivities({ forManage = false } = {}) {
@@ -958,25 +1024,45 @@
   }
 
   function buildScheduleForDay(iso) {
-    const doneActs = getDoneActsForDay(iso);
-    const entries = doneActs
-      .map(a => ({
-        activity: a,
-        duration: getLoggedDuration(iso, a.id),
-        doneTime: getDoneTimeFor(iso, a),
-      }))
-      .filter(x => x.duration > 0 || x.doneTime)
-      .sort((a, b) => {
-        // Primero por hora real si existe
-        if (a.doneTime && b.doneTime) return a.doneTime.localeCompare(b.doneTime);
-        if (a.doneTime) return -1;
-        if (b.doneTime) return 1;
-        // Fallback: por duración
-        if (b.duration !== a.duration) return b.duration - a.duration;
-        return a.activity.name.localeCompare(b.activity.name, "es");
-      });
+    const entries = getTimeEntries(iso)
+      .map(entry => {
+        const activity = aById(entry.activityId);
+        if (!activity) return null;
+        return {
+          activity,
+          duration: ensureStep(entry.minutes, DURATION_STEP),
+          doneTime: parseDoneTime(entry.time) || getDoneTimeFor(iso, activity),
+        };
+      })
+      .filter(Boolean);
 
-    return entries.map(entry => {
+    const usedByAct = {};
+    entries.forEach(e => {
+      usedByAct[e.activity.id] = (usedByAct[e.activity.id] || 0) + e.duration;
+    });
+
+    const doneActs = getDoneActsForDay(iso);
+    doneActs.forEach(a => {
+      const total = getLoggedDuration(iso, a.id);
+      const remain = Math.max(0, total - (usedByAct[a.id] || 0));
+      if (!remain && entries.some(e => e.activity.id === a.id)) return;
+      if (!remain && !getDoneTimeFor(iso, a)) return;
+      entries.push({
+        activity: a,
+        duration: remain,
+        doneTime: getDoneTimeFor(iso, a),
+      });
+    });
+
+    const ordered = entries.sort((a, b) => {
+      if (a.doneTime && b.doneTime) return a.doneTime.localeCompare(b.doneTime);
+      if (a.doneTime) return -1;
+      if (b.doneTime) return 1;
+      if (b.duration !== a.duration) return b.duration - a.duration;
+      return a.activity.name.localeCompare(b.activity.name, "es");
+    });
+
+    return ordered.map(entry => {
       let startText = null;
       let endText = null;
 
@@ -1216,6 +1302,88 @@
     }
   }
 
+  function renderTimeTracker(iso) {
+    if (!els.timeTrackerWrap) return;
+    const activities = [...db.activities].sort((a, b) => a.name.localeCompare(b.name, "es"));
+    const totalTracked = Object.values(activeProfileData().logs[iso]?.durations || {}).reduce((s, v) => s + ensureStep(v), 0);
+    const remaining = Math.max(0, 1440 - totalTracked);
+    const doneCount = activities.filter(a => isDoneFor(iso, a)).length;
+    const pending = activities.filter(a => !isDoneFor(iso, a));
+    const entries = getTimeEntries(iso).sort((a, b) => safeNumber(b.createdAt, 0) - safeNumber(a.createdAt, 0));
+
+    els.timeTrackerWrap.innerHTML = `
+      <div class="timeTracker">
+        <div class="timeStats">
+          <span class="tag tagTime">Hoy registradas: ${escapeHTML(fmtDurationMin(totalTracked))}</span>
+          <span class="tag ${remaining <= 0 ? "tagNoTime" : ""}">Te quedan: ${escapeHTML(fmtDurationMin(remaining))}</span>
+          <span class="tag">Hechas: ${doneCount}/${activities.length}</span>
+          <span class="tag">Sin hacer: ${pending.length}</span>
+        </div>
+        <div class="timeQuickForm">
+          <select id="timeEntryActivity" class="select" title="Actividad para registrar">
+            <option value="">Selecciona actividad...</option>
+            ${activities.map(a => `<option value="${escapeHTML(a.id)}">${escapeHTML(a.name)} (${escapeHTML(a.category)})</option>`).join("")}
+          </select>
+          <input id="timeEntryMinutes" class="input" type="number" min="${DURATION_STEP}" step="${DURATION_STEP}" placeholder="Min (30,60,90)" />
+          <input id="timeEntryClock" class="input" type="time" value="${escapeHTML(nowHHMM())}" />
+          <button id="btnAddTimeEntry" class="btn" type="button">+ Registrar</button>
+        </div>
+        ${pending.length ? `<div class="hint tiny">Actividades sin hacer hoy: ${escapeHTML(pending.slice(0, 5).map(a => a.name).join(", "))}${pending.length > 5 ? "..." : ""}</div>` : ""}
+        <div class="timeEntries" id="dayTimeEntries">
+          ${entries.length ? entries.map(entry => {
+            const a = aById(entry.activityId);
+            if (!a) return "";
+            return `
+              <div class="timeEntryRow">
+                <div>
+                  <div class="timeEntryTitle">${escapeHTML(a.name)}</div>
+                  <div class="tiny">${entry.time ? escapeHTML(entry.time) + " · " : ""}${escapeHTML(fmtDurationMin(entry.minutes))} · ${escapeHTML(a.category)}</div>
+                </div>
+                <button class="small danger" type="button" data-action="remove-entry" data-entry-id="${escapeHTML(entry.id)}">Quitar</button>
+              </div>
+            `;
+          }).join("") : `<div class="emptyState">Sin bloques registrados hoy. Registra sueño, trabajo, deporte o lo que hagas en el día.</div>`}
+        </div>
+      </div>
+    `;
+  }
+
+  function bindTimeTracker(iso) {
+    const addBtn = document.getElementById("btnAddTimeEntry");
+    const entriesWrap = document.getElementById("dayTimeEntries");
+
+    on(addBtn, "click", () => {
+      const actId = document.getElementById("timeEntryActivity")?.value || "";
+      const minutesRaw = document.getElementById("timeEntryMinutes")?.value || "";
+      const clock = document.getElementById("timeEntryClock")?.value || "";
+      const activity = aById(actId);
+      const minutes = Number(minutesRaw);
+
+      if (!activity) {
+        toast("Elige una actividad para registrar.", "warn");
+        return;
+      }
+      if (!Number.isFinite(minutes) || minutes <= 0) {
+        toast("Ingresa minutos válidos (30, 60, 90...).", "warn");
+        return;
+      }
+
+      addTimeEntry(iso, activity, minutes, clock);
+      renderToday();
+      toast("Bloque registrado ✅", "ok");
+    });
+
+    on(entriesWrap, "click", e => {
+      const btn = e.target.closest("[data-action='remove-entry']");
+      if (!btn) return;
+      const ok = removeTimeEntry(iso, btn.dataset.entryId);
+      if (ok) {
+        renderToday();
+        toast("Bloque eliminado", "ok");
+      }
+    });
+  }
+
   /* =========================================================
      Today
   ========================================================= */
@@ -1370,6 +1538,8 @@
     if (els.dayNotes) els.dayNotes.value = activeProfileData().logs[iso]?.notes || "";
     bindNotesAutosave(iso);
     renderSidebarDayMeta();
+    renderTimeTracker(iso);
+    bindTimeTracker(iso);
 
     let activities = getFilteredActivities({ forManage: false });
     let pending = activities.filter(a => !isDoneFor(iso, a));
@@ -2027,6 +2197,9 @@
               Object.keys(prof.logs || {}).forEach(iso => {
                 if (prof.logs[iso]?.checksDaily?.[id]) delete prof.logs[iso].checksDaily[id];
                 if (prof.logs[iso]?.durations?.[id]) delete prof.logs[iso].durations[id];
+                if (Array.isArray(prof.logs[iso]?.entries)) {
+                  prof.logs[iso].entries = prof.logs[iso].entries.filter(x => x.activityId !== id);
+                }
               });
 
               if (prof.cycle?.done?.[id]) delete prof.cycle.done[id];
@@ -2087,7 +2260,7 @@
   }
 
   function exportCSV() {
-    const rows = [["perfil", "fecha", "actividad", "categoria", "subcategoria", "tipo", "energia", "hecha", "duracion_min", "nota_dia"]];
+    const rows = [["perfil", "fecha", "actividad", "categoria", "subcategoria", "tipo", "energia", "hecha", "duracion_min", "sesiones", "nota_dia"]];
     PROFILES.forEach(profile => {
       const prof = db.profiles[profile];
       const allDates = Object.keys(prof.logs || {}).sort();
@@ -2096,6 +2269,7 @@
         db.activities.forEach(a => {
           const done = a.type === "daily" ? !!log.checksDaily?.[a.id] : !!prof.cycle?.done?.[a.id];
           const dur = ensureStep(log.durations?.[a.id] || 0);
+          const sessions = (Array.isArray(log.entries) ? log.entries : []).filter(x => x.activityId === a.id).length;
           if (!done && !dur && !(log.notes || "").trim()) return;
           rows.push([
             profile,
@@ -2107,6 +2281,7 @@
             a.energy || "",
             done ? "1" : "0",
             dur || "",
+            sessions || "",
             log.notes || "",
           ]);
         });
