@@ -4,7 +4,7 @@
    ✅ Perfiles separados: Alek / Cata
    ✅ Día siempre inicia en hoy
    ✅ Agenda: calendario + detalle + horario construido
-   ✅ Duraciones en bloques de 30 min
+   ✅ Duraciones en bloques de 15 min
    ✅ Sin tiempo predeterminado por actividad
    ✅ Exportar JSON en topbar
    ✅ Importar / Exportar CSV
@@ -26,8 +26,8 @@
   const DB_SCHEMA = 6;
 
   const PROFILES = ["alek", "cata"];
-  const DURATION_STEP = 30;
-  const DAY_START_HOUR = 6;
+  const DURATION_STEP = 15;
+  const DAY_START_HOUR = 0;
   const DAY_START_MINUTE = 0;
 
   const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -286,7 +286,7 @@
   }
 
   function toClock(totalMinutes) {
-    const mins = safeNumber(totalMinutes, 0);
+    const mins = ((safeNumber(totalMinutes, 0) % 1440) + 1440) % 1440;
     const hh = Math.floor(mins / 60).toString().padStart(2, "0");
     const mm = (mins % 60).toString().padStart(2, "0");
     return `${hh}:${mm}`;
@@ -294,6 +294,13 @@
 
   function dayBaseMinutes() {
     return DAY_START_HOUR * 60 + DAY_START_MINUTE;
+  }
+
+  function clockToMinutes(hhmm) {
+    const t = parseDoneTime(hhmm);
+    if (!t) return null;
+    const [hh, mm] = t.split(":").map(Number);
+    return hh * 60 + mm;
   }
 
   // Hora actual como "HH:MM"
@@ -1077,6 +1084,72 @@
     });
   }
 
+  function getScheduleEndMinutes(iso) {
+    const timed = buildScheduleForDay(iso)
+      .filter(item => item.startText && item.duration > 0)
+      .map(item => {
+        const start = clockToMinutes(item.startText);
+        return start == null ? null : start + item.duration;
+      })
+      .filter(v => v != null);
+    return timed.length ? Math.max(...timed) : dayBaseMinutes();
+  }
+
+  function nextOpenClock(iso) {
+    return toClock(getScheduleEndMinutes(iso));
+  }
+
+  function activityText(activity) {
+    return `${activity?.name || ""} ${activity?.category || ""} ${activity?.subcategory || ""}`.toLowerCase();
+  }
+
+  function isSleepActivity(activity) {
+    const hay = activityText(activity);
+    return hay.includes("sue") || hay.includes("dorm") || hay.includes("descanso") || hay.includes("descans");
+  }
+
+  function findSleepActivity() {
+    return db.activities.find(isSleepActivity) || db.activities.find(a => activityText(a).includes("pausa")) || null;
+  }
+
+  function hasSleepEntry(iso) {
+    return getTimeEntries(iso).some(entry => {
+      const a = aById(entry.activityId);
+      return a && isSleepActivity(a);
+    });
+  }
+
+  function minutesFromHourMinuteInputs(hourId, minuteId, fallbackMinuteId = null) {
+    const hours = Number(document.getElementById(hourId)?.value || 0);
+    const mins = Number(document.getElementById(minuteId)?.value || document.getElementById(fallbackMinuteId)?.value || 0);
+    const total = (Number.isFinite(hours) ? hours * 60 : 0) + (Number.isFinite(mins) ? mins : 0);
+    return ensureStep(total, DURATION_STEP);
+  }
+
+  function lastDoneISO(activityId, beforeISO = todayISO(), rangeDays = 60) {
+    const pd = activeProfileData();
+    for (let i = 0; i < rangeDays; i++) {
+      const iso = addDays(beforeISO, -i);
+      const day = pd.logs[iso];
+      if (day?.durations?.[activityId] || day?.checksDaily?.[activityId]) return iso;
+      if (Array.isArray(day?.entries) && day.entries.some(e => e.activityId === activityId)) return iso;
+    }
+    return null;
+  }
+
+  function getActivitySuggestion(iso) {
+    const pending = db.activities.filter(a => !isDoneFor(iso, a));
+    const scored = pending.map(a => {
+      const last = lastDoneISO(a.id, addDays(iso, -1), 45);
+      const daysAgo = last ? Math.max(1, Math.round((isoToDate(iso) - isoToDate(last)) / 86400000)) : 46;
+      const name = activityText(a);
+      const priority = name.includes("piano") ? 14 : name.includes("música") || name.includes("musica") ? 8 : 0;
+      return { activity: a, daysAgo, score: daysAgo + priority };
+    }).sort((a, b) => b.score - a.score);
+
+    return scored[0] || null;
+  }
+
   /* =========================================================
      View switching / tabs
   ========================================================= */
@@ -1240,12 +1313,12 @@
   function askDuration(activity, iso) {
     modalOpen({
       title: `⏱ ${activity.name}`,
-      desc: "¿Cuánto tiempo le dedicaron hoy? Se guarda solo en bloques de 30 min para construir el horario real.",
+      desc: `¿Cuánto tiempo le dedicaron hoy? Se guarda en bloques de ${DURATION_STEP} min para construir el horario real.`,
       contentHTML: `
         <div style="margin-top:8px">
           <label class="label" for="durationInput">Minutos dedicados</label>
           <input id="durationInput" class="input" type="number" min="${DURATION_STEP}" step="${DURATION_STEP}"
-                 placeholder="Ej: 30, 60, 90" autofocus style="font-size:18px;text-align:center" />
+                 placeholder="Ej: 15, 60, 90" autofocus style="font-size:18px;text-align:center" />
           <div class="hint tiny" style="margin-top:8px">
             Se redondea a bloques de ${DURATION_STEP} min. Déjalo en blanco si no quieres registrarlo ahora.
           </div>
@@ -1310,6 +1383,10 @@
     const doneCount = activities.filter(a => isDoneFor(iso, a)).length;
     const pending = activities.filter(a => !isDoneFor(iso, a));
     const entries = getTimeEntries(iso).sort((a, b) => safeNumber(b.createdAt, 0) - safeNumber(a.createdAt, 0));
+    const nextClock = nextOpenClock(iso);
+    const suggestion = getActivitySuggestion(iso);
+    const sleepActivity = findSleepActivity();
+    const showSleepPrompt = sleepActivity && !hasSleepEntry(iso);
 
     els.timeTrackerWrap.innerHTML = `
       <div class="timeTracker">
@@ -1319,15 +1396,41 @@
           <span class="tag">Hechas: ${doneCount}/${activities.length}</span>
           <span class="tag">Sin hacer: ${pending.length}</span>
         </div>
+        ${showSleepPrompt ? `
+          <div class="timeCoachBox sleepCoach">
+            <div>
+              <strong>¿Cuánto dormiste hoy?</strong>
+              <div class="tiny">Si el día empezó a las 12:00 a. m., esto llena tu primer bloque como descanso.</div>
+            </div>
+            <div class="timeCoachInputs">
+              <input id="sleepHours" class="input miniInput" type="number" min="0" max="24" step="1" placeholder="8" />
+              <span class="tiny">h</span>
+              <input id="sleepMinutes" class="input miniInput" type="number" min="0" max="45" step="${DURATION_STEP}" placeholder="0" />
+              <span class="tiny">min</span>
+              <button id="btnAddSleep" class="btn" type="button">Registrar sueño</button>
+            </div>
+          </div>
+        ` : ""}
+        ${suggestion ? `
+          <div class="timeCoachBox">
+            <div>
+              <strong>Idea para decidir qué hacer:</strong>
+              <span> hace ${suggestion.daysAgo >= 46 ? "mucho" : suggestion.daysAgo + " días"} no registras ${escapeHTML(suggestion.activity.name)}.</span>
+            </div>
+            <button class="btn ghost" id="btnUseSuggestion" type="button" data-activity-id="${escapeHTML(suggestion.activity.id)}">Voy a hacer esto</button>
+          </div>
+        ` : ""}
         <div class="timeQuickForm">
           <select id="timeEntryActivity" class="select" title="Actividad para registrar">
             <option value="">Selecciona actividad...</option>
             ${activities.map(a => `<option value="${escapeHTML(a.id)}">${escapeHTML(a.name)} (${escapeHTML(a.category)})</option>`).join("")}
           </select>
-          <input id="timeEntryMinutes" class="input" type="number" min="${DURATION_STEP}" step="${DURATION_STEP}" placeholder="Min (30,60,90)" />
-          <input id="timeEntryClock" class="input" type="time" value="${escapeHTML(nowHHMM())}" />
+          <input id="timeEntryHours" class="input miniInput" type="number" min="0" max="24" step="1" placeholder="Horas" />
+          <input id="timeEntryMinutes" class="input miniInput" type="number" min="0" max="45" step="${DURATION_STEP}" placeholder="Min" />
+          <input id="timeEntryClock" class="input" type="time" step="900" value="${escapeHTML(nextClock)}" />
           <button id="btnAddTimeEntry" class="btn" type="button">+ Registrar</button>
         </div>
+        <div class="hint tiny">Siguiente pregunta: ¿qué hiciste a las ${escapeHTML(nextClock)}? Puedes responder en horas o en bloques de ${DURATION_STEP} min.</div>
         ${pending.length ? `<div class="hint tiny">Actividades sin hacer hoy: ${escapeHTML(pending.slice(0, 5).map(a => a.name).join(", "))}${pending.length > 5 ? "..." : ""}</div>` : ""}
         <div class="timeEntries" id="dayTimeEntries">
           ${entries.length ? entries.map(entry => {
@@ -1350,21 +1453,44 @@
 
   function bindTimeTracker(iso) {
     const addBtn = document.getElementById("btnAddTimeEntry");
+    const sleepBtn = document.getElementById("btnAddSleep");
+    const suggestionBtn = document.getElementById("btnUseSuggestion");
     const entriesWrap = document.getElementById("dayTimeEntries");
+
+    on(sleepBtn, "click", () => {
+      const activity = findSleepActivity();
+      const minutes = minutesFromHourMinuteInputs("sleepHours", "sleepMinutes");
+      if (!activity) {
+        toast("No encontré una actividad de sueño/descanso.", "warn");
+        return;
+      }
+      if (!minutes) {
+        toast("Ingresa cuántas horas dormiste.", "warn");
+        return;
+      }
+      addTimeEntry(iso, activity, minutes, "00:00");
+      renderToday();
+      toast("Sueño registrado ✅", "ok");
+    });
+
+    on(suggestionBtn, "click", () => {
+      const select = document.getElementById("timeEntryActivity");
+      if (select) select.value = suggestionBtn.dataset.activityId || "";
+      document.getElementById("timeEntryHours")?.focus();
+    });
 
     on(addBtn, "click", () => {
       const actId = document.getElementById("timeEntryActivity")?.value || "";
-      const minutesRaw = document.getElementById("timeEntryMinutes")?.value || "";
       const clock = document.getElementById("timeEntryClock")?.value || "";
       const activity = aById(actId);
-      const minutes = Number(minutesRaw);
+      const minutes = minutesFromHourMinuteInputs("timeEntryHours", "timeEntryMinutes");
 
       if (!activity) {
         toast("Elige una actividad para registrar.", "warn");
         return;
       }
-      if (!Number.isFinite(minutes) || minutes <= 0) {
-        toast("Ingresa minutos válidos (30, 60, 90...).", "warn");
+      if (!minutes) {
+        toast(`Ingresa una duración válida en horas o bloques de ${DURATION_STEP} min.`, "warn");
         return;
       }
 
@@ -1415,9 +1541,9 @@
             </div>
             ${checked ? `
               <div class="durationControls" style="margin-top:10px;">
-                <button class="durationBtn" type="button" data-action="dec" data-id="${escapeHTML(a.id)}">−30</button>
+                <button class="durationBtn" type="button" data-action="dec" data-id="${escapeHTML(a.id)}">−${DURATION_STEP}</button>
                 <div class="durationValue">${escapeHTML(loggedDur ? fmtDurationMin(loggedDur) : "0 min")}</div>
-                <button class="durationBtn" type="button" data-action="inc" data-id="${escapeHTML(a.id)}">+30</button>
+                <button class="durationBtn" type="button" data-action="inc" data-id="${escapeHTML(a.id)}">+${DURATION_STEP}</button>
               </div>
             ` : ""}
           </div>
@@ -1853,6 +1979,8 @@
     if (els.weekGrid) {
       els.weekGrid.innerHTML = byDay.map(d => {
         const dateObj = isoToDate(d.iso);
+        const schedule = buildScheduleForDay(d.iso).filter(item => item.startText).slice(0, 8);
+        const totalMinutes = schedule.reduce((sum, item) => sum + item.duration, 0);
         return `
           <div class="dayCard" data-iso="${escapeHTML(d.iso)}" role="button" tabindex="0" aria-label="Ir al día ${escapeHTML(fmtDateShort(d.iso))}">
             <div class="dayName">${escapeHTML(dayNames[dateObj.getDay()])}</div>
@@ -1881,12 +2009,25 @@
     }
 
     if (els.weekByDay) {
-      els.weekByDay.innerHTML = byDay.map(d => `
-        <div class="row">
-          <div>${escapeHTML(fmtDateShort(d.iso))}</div>
-          <div><b>${Math.round(d.pct * 100)}%</b> <span class="muted">(${d.done}/${d.total})</span></div>
-        </div>
-      `).join("");
+      els.weekByDay.innerHTML = byDay.map(d => {
+        const schedule = buildScheduleForDay(d.iso).filter(item => item.startText).slice(0, 10);
+        return `
+          <div class="weekDayTable">
+            <div class="row">
+              <div>${escapeHTML(fmtDateShort(d.iso))}</div>
+              <div><b>${Math.round(d.pct * 100)}%</b> <span class="muted">(${d.done}/${d.total})</span></div>
+            </div>
+            <div class="weekMiniSchedule">
+              ${schedule.length ? schedule.map(item => `
+                <div class="weekMiniRow">
+                  <span>${escapeHTML(item.startText)}${item.endText ? `-${escapeHTML(item.endText)}` : ""}</span>
+                  <strong>${escapeHTML(item.activity.name)}</strong>
+                </div>
+              `).join("") : `<div class="tiny muted">Sin horario registrado</div>`}
+            </div>
+          </div>
+        `;
+      }).join("");
     }
 
     const cats = unique(dailyActs.map(a => a.category).filter(Boolean)).sort(sortByLocale);

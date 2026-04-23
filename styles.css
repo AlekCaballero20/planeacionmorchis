@@ -2157,9 +2157,38 @@ button:focus-visible,
 }
 .timeQuickForm{
   display:grid;
-  grid-template-columns:2fr .8fr .8fr auto;
+  grid-template-columns:2fr .55fr .55fr .8fr auto;
   gap:8px;
   margin-bottom:10px;
+}
+
+.miniInput{
+  min-width:78px;
+}
+
+.timeCoachBox{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  border:1px solid rgba(34,48,74,.78);
+  background:rgba(17,28,51,.42);
+  border-radius:14px;
+  padding:10px 12px;
+  margin-bottom:10px;
+}
+
+.sleepCoach{
+  border-color:rgba(34,197,94,.28);
+  background:linear-gradient(135deg, rgba(34,197,94,.12), rgba(17,28,51,.44));
+}
+
+.timeCoachInputs{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
 }
 .timeEntries{
   display:grid;
@@ -2180,7 +2209,44 @@ button:focus-visible,
   font-size:14px;
 }
 @media (max-width: 900px){
-  .timeQuickForm{
+  .timeQuickForm,
+  .timeCoachBox{
     grid-template-columns:1fr;
+    flex-direction:column;
+    align-items:stretch;
   }
+}
+
+.weekDayTable{
+  border:1px solid rgba(34,48,74,.70);
+  border-radius:14px;
+  padding:8px;
+  background:rgba(17,28,51,.24);
+  margin-bottom:8px;
+}
+
+.weekMiniSchedule{
+  display:grid;
+  gap:5px;
+  margin-top:8px;
+}
+
+.weekMiniRow{
+  display:grid;
+  grid-template-columns:92px 1fr;
+  gap:8px;
+  align-items:start;
+  font-size:12px;
+  line-height:1.25;
+  color:rgba(229,231,235,.86);
+}
+
+.weekMiniRow span{
+  color:rgba(34,197,94,.88);
+  font-weight:850;
+  white-space:nowrap;
+}
+
+.weekMiniRow strong{
+  overflow-wrap:anywhere;
 }
