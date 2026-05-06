@@ -52,7 +52,7 @@
           return snap.exists ? snap.data() : null;
         } catch (e) {
           console.warn("[BitacoraCloud] load error:", e.message);
-          return null;
+          throw e;
         }
       },
 
@@ -63,6 +63,7 @@
           await DOC.set(clean);
         } catch (e) {
           console.warn("[BitacoraCloud] save error:", e.message);
+          throw e;
         }
       },
 
@@ -71,6 +72,7 @@
           await DOC.delete();
         } catch (e) {
           console.warn("[BitacoraCloud] wipe error:", e.message);
+          throw e;
         }
       },
     };

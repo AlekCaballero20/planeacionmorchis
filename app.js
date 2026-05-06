@@ -316,10 +316,6 @@
     };
   }
 
-  function saveState() {
-    // Estado intencionalmente en memoria. Nada se persiste en el navegador.
-  }
-
   function applyTheme() {
     document.documentElement.dataset.theme = "light";
   }
@@ -1175,7 +1171,6 @@
   function setView(view) {
     if (!TAB_MAP[view]) view = "today";
     state.view = view;
-    saveState();
     updateTabsUI(view);
     renderCurrentView();
   }
