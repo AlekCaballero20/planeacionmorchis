@@ -23,8 +23,8 @@
   const fallback = {
     ready: false,
     load: async () => null,
-    save: async NOOP,
-    wipe: async NOOP,
+    save: async () => NOOP(),
+    wipe: async () => NOOP(),
   };
 
   try {
