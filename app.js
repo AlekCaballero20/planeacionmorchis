@@ -1,4 +1,4 @@
-﻿/* app.js
+/* app.js
    Bitácora - Alek & Cata
    ------------------------------------------------------------
    ✅ Firebase-first: Firebase es la única fuente de datos
@@ -313,6 +313,7 @@
       agendaYear: d.getFullYear(),
       agendaMonth: d.getMonth(),
       agendaSelectedDay: today,
+      timeFollowUp: null,
     };
   }
 
@@ -1067,6 +1068,40 @@
     return toClock(getScheduleEndMinutes(iso));
   }
 
+  function clearTimeFollowUp() {
+    state.timeFollowUp = null;
+  }
+
+  function maybeQueueTimeFollowUp(iso, startClock, minutes, label = "") {
+    clearTimeFollowUp();
+    if (iso !== todayISO()) return;
+
+    const startMins = clockToMinutes(startClock);
+    const normalized = ensureStep(minutes);
+    const currentClock = nowHHMM();
+    const currentMins = clockToMinutes(currentClock);
+    if (startMins == null || !normalized || currentMins == null) return;
+
+    const nextMins = startMins + normalized;
+    const gap = currentMins - nextMins;
+    if (gap < DURATION_STEP) return;
+
+    state.timeFollowUp = {
+      iso,
+      profile: activeProfile(),
+      nextClock: toClock(nextMins),
+      currentClock,
+      label: String(label || "").trim(),
+      createdAt: Date.now(),
+    };
+  }
+
+  function activeTimeFollowUpFor(iso) {
+    const prompt = state.timeFollowUp;
+    if (!prompt || prompt.iso !== iso || prompt.profile !== activeProfile()) return null;
+    return prompt;
+  }
+
   function activityText(activity) {
     return `${activity?.name || ""} ${activity?.category || ""} ${activity?.subcategory || ""}`.toLowerCase();
   }
@@ -1372,6 +1407,20 @@
           <button id="btnAddTimeEntry" class="btn" type="button">+ Registrar</button>
         </div>
 
+        ${activeTimeFollowUpFor(iso) ? `
+          <div class="timeCoachBox timeFollowUpPrompt" id="timeFollowUpPrompt">
+            <div>
+              <strong>Registraste hasta las ${escapeHTML(activeTimeFollowUpFor(iso).nextClock)}.</strong>
+              <div class="tiny">¿Quieres agregar qué hiciste en la hora que seguía o seguimos desde la hora actual?</div>
+            </div>
+            <div class="timeCoachInputs">
+              <button class="btn ghost" type="button" data-followup-action="next">Agregar la hora que seguía</button>
+              <button class="btn" type="button" data-followup-action="current">Seguir desde ahora</button>
+              <button class="small" type="button" data-followup-action="dismiss" title="Cerrar sugerencia">Cerrar</button>
+            </div>
+          </div>
+        ` : ""}
+
         <div class="hint tiny">Siguiente pregunta: ¿qué hiciste a las ${escapeHTML(nextClock)}? Puedes responder en horas o bloques de ${DURATION_STEP} min.</div>
         ${pending.length ? `<div class="hint tiny">Actividades sin hacer hoy: ${escapeHTML(pending.slice(0, 5).map(a => a.name).join(", "))}${pending.length > 5 ? "..." : ""}</div>` : ""}
 
@@ -1400,6 +1449,7 @@
     const suggestionBtn = document.getElementById("btnUseSuggestion");
     const entriesWrap = document.getElementById("dayTimeEntries");
     const routineWrap = document.querySelector(".routinePromptList");
+    const followUpWrap = document.getElementById("timeFollowUpPrompt");
 
     on(sleepBtn, "click", () => {
       const activity = findSleepActivity();
@@ -1408,6 +1458,7 @@
       if (!activity) return toast("No encontré una actividad de sueño/descanso.", "warn");
       if (!minutes) return toast("Ingresa cuántas horas dormiste.", "warn");
       if (!addTimeEntry(iso, activity, minutes, start)) return toast("Ese bloque se cruza con otro horario registrado.", "warn");
+      maybeQueueTimeFollowUp(iso, start, minutes, activity.name);
       renderToday();
       toast("Sueño registrado ✅", "ok");
     });
@@ -1420,6 +1471,7 @@
       const clock = document.querySelector(`[data-routine-time='${CSS.escape(btn.dataset.routineKey || "")}']`)?.value || nowHHMM();
       if (!prompt || !activity) return toast("No encontré esa actividad predeterminada.", "warn");
       if (!addTimeEntry(iso, activity, prompt.minutes, clock)) return toast("Ese bloque se cruza con otro horario registrado.", "warn");
+      maybeQueueTimeFollowUp(iso, clock, prompt.minutes, activity.name);
       renderToday();
       toast(`${activity.name} registrado en Firebase ✅`, "ok");
     });
@@ -1438,8 +1490,52 @@
       if (!activity) return toast("Elige una actividad para registrar.", "warn");
       if (!minutes) return toast(`Ingresa una duración válida en horas o bloques de ${DURATION_STEP} min.`, "warn");
       if (!addTimeEntry(iso, activity, minutes, clock)) return toast("Revisa duración y hora: no se guardan bloques inválidos o solapados.", "warn");
+      maybeQueueTimeFollowUp(iso, clock, minutes, activity.name);
       renderToday();
       toast("Bloque registrado ✅", "ok");
+    });
+
+    on(followUpWrap, "click", e => {
+      const btn = e.target.closest("[data-followup-action]");
+      if (!btn) return;
+
+      const action = btn.dataset.followupAction;
+      const prompt = activeTimeFollowUpFor(iso);
+      const clockInput = document.getElementById("timeEntryClock");
+      const hoursInput = document.getElementById("timeEntryHours");
+      const minutesInput = document.getElementById("timeEntryMinutes");
+      const activityInput = document.getElementById("timeEntryActivity");
+
+      if (action === "next" && prompt) {
+        if (clockInput) clockInput.value = prompt.nextClock;
+        if (hoursInput) hoursInput.value = "1";
+        if (minutesInput) minutesInput.value = "0";
+        if (activityInput) {
+          activityInput.value = "";
+          activityInput.focus();
+        }
+        clearTimeFollowUp();
+        followUpWrap.remove();
+        toast(`Listo, registra qué hiciste desde las ${prompt.nextClock}.`, "info");
+        return;
+      }
+
+      if (action === "current") {
+        const current = nowHHMM();
+        if (clockInput) clockInput.value = current;
+        if (hoursInput) hoursInput.value = "";
+        if (minutesInput) minutesInput.value = "";
+        if (activityInput) activityInput.focus();
+        clearTimeFollowUp();
+        followUpWrap.remove();
+        toast(`Seguimos desde la hora actual: ${current}.`, "info");
+        return;
+      }
+
+      if (action === "dismiss") {
+        clearTimeFollowUp();
+        followUpWrap.remove();
+      }
     });
 
     on(entriesWrap, "click", e => {

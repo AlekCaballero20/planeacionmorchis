@@ -2584,3 +2584,11 @@ button:focus-visible,
     border-color: #d1d5db;
   }
 }
+.timeFollowUpPrompt {
+  border-color: rgba(123, 76, 194, 0.32);
+  background: linear-gradient(135deg, rgba(123, 76, 194, 0.12), rgba(255, 255, 255, 0.8));
+}
+
+.timeFollowUpPrompt strong {
+  color: var(--accentDark);
+}
