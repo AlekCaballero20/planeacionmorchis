@@ -91,6 +91,7 @@
     nextDay: $("#nextDay"),
     todaySub: $("#todaySub"),
     timeTrackerWrap: $("#timeTrackerWrap"),
+    smartPlannerWrap: $("#smartPlannerWrap"),
     pendingList: $("#pendingList"),
     doneList: $("#doneList"),
     pendingCount: $("#pendingCount"),
@@ -314,6 +315,9 @@
       agendaMonth: d.getMonth(),
       agendaSelectedDay: today,
       timeFollowUp: null,
+      smartPlannerMode: "balanced",
+      smartPlannerPlan: null,
+      smartPlannerKey: "",
     };
   }
 
@@ -509,7 +513,7 @@
     Object.keys(logs).forEach(iso => {
       const day = logs[iso];
       if (!day || typeof day !== "object") {
-        logs[iso] = { checksDaily: {}, notes: "", durations: {}, entries: [] };
+        logs[iso] = { checksDaily: {}, notes: "", durations: {}, entries: [], plannedEntries: [] };
         return;
       }
 
@@ -522,6 +526,7 @@
       if (typeof day.notes !== "string") day.notes = String(day.notes || "");
       if (!day.durations || typeof day.durations !== "object") day.durations = {};
       if (!Array.isArray(day.entries)) day.entries = [];
+      if (!Array.isArray(day.plannedEntries)) day.plannedEntries = [];
 
       Object.keys(day.durations).forEach(id => {
         day.durations[id] = ensureStep(day.durations[id]);
@@ -539,6 +544,27 @@
           createdAt: safeNumber(x.createdAt, Date.now()),
         }))
         .filter(x => x.minutes > 0);
+
+      day.plannedEntries = day.plannedEntries
+        .filter(x => x && typeof x === "object" && x.activityId && x.start && x.end)
+        .map(x => {
+          const start = parseDoneTime(x.start);
+          const end = parseDoneTime(x.end);
+          const startMin = clockToMinutes(start);
+          const endMin = clockToMinutes(end);
+          const minutes = ensureStep(x.minutes || (startMin != null && endMin != null ? endMin - startMin : 0));
+          return {
+            id: String(x.id || uid()),
+            activityId: String(x.activityId),
+            start,
+            end,
+            minutes,
+            reason: String(x.reason || ""),
+            status: ["planned", "done", "skipped"].includes(x.status) ? x.status : "planned",
+            createdAt: x.createdAt || nowISODate(),
+          };
+        })
+        .filter(x => x.start && x.end && x.minutes > 0);
     });
     return logs;
   }
@@ -640,12 +666,13 @@
 
   function ensureDay(iso) {
     const pd = activeProfileData();
-    if (!pd.logs[iso]) pd.logs[iso] = { checksDaily: {}, notes: "", durations: {}, entries: [] };
+    if (!pd.logs[iso]) pd.logs[iso] = { checksDaily: {}, notes: "", durations: {}, entries: [], plannedEntries: [] };
     const day = pd.logs[iso];
     if (!day.checksDaily || typeof day.checksDaily !== "object") day.checksDaily = {};
     if (typeof day.notes !== "string") day.notes = String(day.notes || "");
     if (!day.durations || typeof day.durations !== "object") day.durations = {};
     if (!Array.isArray(day.entries)) day.entries = [];
+    if (!Array.isArray(day.plannedEntries)) day.plannedEntries = [];
     return day;
   }
 
@@ -1179,6 +1206,491 @@
     return scored[0] || null;
   }
 
+  function smartTimeBucket(clockOrMinutes) {
+    const mins = typeof clockOrMinutes === "number" ? clockOrMinutes : clockToMinutes(clockOrMinutes);
+    if (mins == null) return "sin hora";
+    if (mins < 6 * 60) return "madrugada";
+    if (mins < 11 * 60) return "manana";
+    if (mins < 15 * 60) return "mediodia";
+    if (mins < 19 * 60) return "tarde";
+    if (mins < 23 * 60) return "noche";
+    return "madrugada";
+  }
+
+  function smartActivityKind(activity) {
+    const hay = activityText(activity);
+    if (/descanso|dorm|sue|pausa|respir|caminar|pareja|jugar|ocio|relax/.test(hay)) return "rest";
+    if (/comida|desayun|almorz|cenar|cocina|mercado/.test(hay)) return "care";
+    if (/trabajo|admin|program|planea|finanza|estudio|practica|música|musica|arte|dibujo|pedagog/.test(hay)) return "load";
+    return activity.energy === "high" ? "load" : activity.energy === "low" ? "rest" : "neutral";
+  }
+
+  function makeSmartPatternStore() {
+    return {
+      totalDays: 0,
+      daysWithLogs: 0,
+      byWeekday: Array.from({ length: 7 }, () => ({ total: 0, activities: {}, categories: {}, buckets: {} })),
+      byActivity: {},
+      byBucket: {},
+    };
+  }
+
+  function bumpSmartStat(store, key, amount = 1) {
+    if (!key) return;
+    store[key] = (store[key] || 0) + amount;
+  }
+
+  function analyzeRoutinePatterns(profile = activeProfile(), rangeDays = 45) {
+    const pd = db?.profiles?.[profile] || activeProfileData();
+    const patterns = makeSmartPatternStore();
+    const days = getDateRangeArray(todayISO(), rangeDays);
+    patterns.totalDays = days.length;
+
+    days.forEach(iso => {
+      const day = pd.logs?.[iso];
+      const weekday = isoToDate(iso).getDay();
+      const dayPattern = patterns.byWeekday[weekday];
+      dayPattern.total++;
+      if (!day) return;
+
+      const seenToday = new Set();
+      const entries = Array.isArray(day.entries) ? day.entries : [];
+      entries.forEach(entry => {
+        const activity = aById(entry.activityId);
+        if (!activity) return;
+        const minutes = ensureStep(entry.minutes || day.durations?.[activity.id] || 0);
+        const bucket = smartTimeBucket(entry.time);
+        const startMin = clockToMinutes(entry.time);
+        seenToday.add(activity.id);
+        bumpSmartStat(dayPattern.activities, activity.id);
+        bumpSmartStat(dayPattern.categories, activity.category);
+        if (!dayPattern.buckets[bucket]) dayPattern.buckets[bucket] = { activities: {}, categories: {}, total: 0 };
+        dayPattern.buckets[bucket].total++;
+        bumpSmartStat(dayPattern.buckets[bucket].activities, activity.id);
+        bumpSmartStat(dayPattern.buckets[bucket].categories, activity.category);
+        if (!patterns.byBucket[bucket]) patterns.byBucket[bucket] = { activities: {}, categories: {}, total: 0 };
+        patterns.byBucket[bucket].total++;
+        bumpSmartStat(patterns.byBucket[bucket].activities, activity.id);
+        bumpSmartStat(patterns.byBucket[bucket].categories, activity.category);
+
+        if (!patterns.byActivity[activity.id]) {
+          patterns.byActivity[activity.id] = { count: 0, days: 0, weekdays: {}, buckets: {}, totalMinutes: 0, timedCount: 0, totalStart: 0, category: activity.category };
+        }
+        const stat = patterns.byActivity[activity.id];
+        stat.count++;
+        stat.totalMinutes += minutes;
+        bumpSmartStat(stat.weekdays, weekday);
+        bumpSmartStat(stat.buckets, bucket);
+        if (startMin != null) {
+          stat.timedCount++;
+          stat.totalStart += startMin;
+        }
+      });
+
+      Object.keys(day.checksDaily || {}).forEach(activityId => {
+        if (seenToday.has(activityId)) return;
+        const activity = aById(activityId);
+        if (!activity) return;
+        const time = parseDoneTime(day.checksDaily[activityId]);
+        const bucket = smartTimeBucket(time);
+        seenToday.add(activityId);
+        bumpSmartStat(dayPattern.activities, activityId);
+        bumpSmartStat(dayPattern.categories, activity.category);
+        if (!patterns.byActivity[activityId]) {
+          patterns.byActivity[activityId] = { count: 0, days: 0, weekdays: {}, buckets: {}, totalMinutes: 0, timedCount: 0, totalStart: 0, category: activity.category };
+        }
+        const stat = patterns.byActivity[activityId];
+        stat.count++;
+        stat.totalMinutes += ensureStep(day.durations?.[activityId] || 30);
+        bumpSmartStat(stat.weekdays, weekday);
+        bumpSmartStat(stat.buckets, bucket);
+        const startMin = clockToMinutes(time);
+        if (startMin != null) {
+          stat.timedCount++;
+          stat.totalStart += startMin;
+        }
+      });
+
+      if (seenToday.size) patterns.daysWithLogs++;
+      seenToday.forEach(activityId => {
+        if (patterns.byActivity[activityId]) patterns.byActivity[activityId].days++;
+      });
+    });
+
+    Object.values(patterns.byActivity).forEach(stat => {
+      stat.avgMinutes = ensureStep(stat.totalMinutes / Math.max(1, stat.count));
+      stat.typicalTime = stat.timedCount ? toClock(Math.round(stat.totalStart / stat.timedCount / DURATION_STEP) * DURATION_STEP) : null;
+    });
+
+    return patterns;
+  }
+
+  function getTodayContext(iso) {
+    const profile = activeProfile();
+    const day = ensureDay(iso);
+    const nowClock = nowHHMM();
+    const nowMinutes = clockToMinutes(nowClock) || 0;
+    const doneActivities = activeActivities().filter(a => isDoneFor(iso, a) || getTimeEntries(iso, a.id).length || getLoggedDuration(iso, a.id));
+    const doneIds = new Set(doneActivities.map(a => a.id));
+    const pendingActivities = activeActivities().filter(a => !doneIds.has(a.id));
+    const staleActivities = pendingActivities.map(activity => {
+      const last = lastDoneISO(activity.id, addDays(iso, -1), 60);
+      const daysAgo = last ? Math.max(1, Math.round((isoToDate(iso) - isoToDate(last)) / 86400000)) : 61;
+      return { activity, daysAgo, last };
+    }).sort((a, b) => b.daysAgo - a.daysAgo);
+    const loadDone = doneActivities.filter(a => smartActivityKind(a) === "load").length;
+    const restDone = doneActivities.filter(a => smartActivityKind(a) === "rest").length;
+    const highDone = doneActivities.filter(a => a.energy === "high").length;
+    const categoriesDone = {};
+    doneActivities.forEach(a => bumpSmartStat(categoriesDone, a.category));
+
+    return {
+      profile,
+      iso,
+      weekday: isoToDate(iso).getDay(),
+      nowClock,
+      nowMinutes,
+      currentBucket: smartTimeBucket(nowMinutes),
+      nextBucket: smartTimeBucket(nowMinutes + 90),
+      doneIds,
+      doneActivities,
+      pendingActivities,
+      staleActivities,
+      plannedEntries: day.plannedEntries || [],
+      entries: day.entries || [],
+      categoriesDone,
+      loadDone,
+      restDone,
+      highDone,
+      loadRatio: (loadDone + restDone) ? loadDone / (loadDone + restDone) : 0.5,
+      needsRest: highDone >= 2 || loadDone > restDone + 1,
+    };
+  }
+
+  function scoreActivityForToday(activity, context, patterns) {
+    if (!activity || context.doneIds.has(activity.id)) return { score: -999, reason: "Ya registrada hoy", confidence: 0 };
+    const weekdayStats = patterns.byWeekday[context.weekday] || {};
+    const activityStats = patterns.byActivity[activity.id] || {};
+    const bucketStats = patterns.byBucket[context.currentBucket]?.activities?.[activity.id] || 0;
+    const nextBucketStats = patterns.byBucket[context.nextBucket]?.activities?.[activity.id] || 0;
+    const weekdayCount = weekdayStats.activities?.[activity.id] || 0;
+    const categoryDayCount = weekdayStats.categories?.[activity.category] || 0;
+    const stale = context.staleActivities.find(x => x.activity.id === activity.id);
+    const daysAgo = stale?.daysAgo || 0;
+    const kind = smartActivityKind(activity);
+    let score = 0;
+    const reasons = [];
+
+    if (weekdayCount) {
+      score += weekdayCount * 9;
+      reasons.push(`suele aparecer los ${dayNames[context.weekday]}`);
+    }
+    if (bucketStats || nextBucketStats) {
+      score += bucketStats * 8 + nextBucketStats * 5;
+      reasons.push(`encaja con esta franja`);
+    }
+    if (categoryDayCount && !weekdayCount) score += Math.min(16, categoryDayCount * 3);
+    if (daysAgo >= 14) {
+      score += Math.min(28, daysAgo * 0.75);
+      reasons.push(`lleva ${daysAgo} dias sin registrarse`);
+    } else if (daysAgo >= 5) {
+      score += 8;
+      reasons.push(`esta algo olvidada`);
+    }
+
+    if (activity.energy === "high") score += context.highDone >= 2 ? -18 : 2;
+    if (activity.energy === "low") score += context.needsRest ? 18 : 3;
+    if (kind === "rest" && context.needsRest) reasons.push("compensa la carga del dia");
+    if (kind === "load" && context.needsRest) score -= 10;
+    if (activity.type === "daily") score += 8;
+    if (!patterns.daysWithLogs) score += activity.type === "daily" ? 12 : 4;
+
+    const confidence = Math.max(0.18, Math.min(0.96, (weekdayCount + bucketStats + nextBucketStats + (activityStats.count || 0) / 4) / Math.max(4, patterns.daysWithLogs || 4)));
+    return {
+      activity,
+      score,
+      reason: reasons.slice(0, 2).join("; ") || "pendiente activa para completar el dia",
+      confidence,
+      daysAgo,
+      avgMinutes: activityStats.avgMinutes || 45,
+      typicalTime: activityStats.typicalTime,
+    };
+  }
+
+  function smartDurationFor(scoreItem, mode) {
+    const raw = scoreItem.avgMinutes || 45;
+    const softer = mode === "soft" ? -15 : mode === "productive" ? 15 : 0;
+    const mins = raw + softer;
+    if (mins <= 35) return 30;
+    if (mins <= 52) return 45;
+    return 60;
+  }
+
+  function generateSmartDayPlan(iso, options = {}) {
+    const mode = options.mode || state.smartPlannerMode || "balanced";
+    const patterns = analyzeRoutinePatterns(activeProfile(), options.rangeDays || 45);
+    const context = getTodayContext(iso);
+    const maxBlocks = mode === "productive" ? 6 : mode === "soft" ? 4 : 5;
+    const startBase = Math.max(context.nowMinutes + 15, getScheduleEndMinutes(iso) || 0, 7 * 60);
+    let cursor = Math.ceil(startBase / 15) * 15;
+    if (todayISO() !== iso) cursor = Math.max(7 * 60, cursor);
+    const hardEnd = mode === "productive" ? 22 * 60 : 21 * 60;
+    const scored = context.pendingActivities
+      .map(activity => scoreActivityForToday(activity, context, patterns))
+      .filter(item => item.score > -100)
+      .sort((a, b) => b.score - a.score);
+    const plan = [];
+    let highCount = context.highDone;
+    let restIncluded = false;
+
+    for (const item of scored) {
+      if (plan.length >= maxBlocks || cursor >= hardEnd) break;
+      if (plan.some(block => block.activityId === item.activity.id)) continue;
+      const kind = smartActivityKind(item.activity);
+      if (item.activity.energy === "high" && highCount >= (mode === "productive" ? 3 : 2)) continue;
+      if (context.needsRest && plan.length >= 2 && !restIncluded && kind !== "rest" && item.activity.energy !== "low") continue;
+      const minutes = smartDurationFor(item, mode);
+      const end = cursor + minutes;
+      if (end > hardEnd) continue;
+      plan.push({
+        id: uid(),
+        start: toClock(cursor),
+        end: toClock(end),
+        minutes,
+        activityId: item.activity.id,
+        title: item.activity.name,
+        category: item.activity.category,
+        reason: item.reason,
+        energy: item.activity.energy || "",
+        confidence: item.confidence,
+      });
+      if (item.activity.energy === "high") highCount++;
+      if (kind === "rest" || item.activity.energy === "low") restIncluded = true;
+      cursor = end + (mode === "productive" ? 10 : 15);
+    }
+
+    if (context.needsRest && !restIncluded && plan.length < maxBlocks) {
+      const restItem = scored.find(item => smartActivityKind(item.activity) === "rest" || item.activity.energy === "low");
+      if (restItem && !plan.some(block => block.activityId === restItem.activity.id) && cursor + 30 <= hardEnd) {
+        plan.push({
+          id: uid(),
+          start: toClock(cursor),
+          end: toClock(cursor + 30),
+          minutes: 30,
+          activityId: restItem.activity.id,
+          title: restItem.activity.name,
+          category: restItem.activity.category,
+          reason: "bloque suave para equilibrar carga y descanso",
+          energy: restItem.activity.energy || "",
+          confidence: restItem.confidence,
+        });
+      }
+    }
+
+    const topCategory = Object.entries(patterns.byWeekday[context.weekday]?.categories || {}).sort((a, b) => b[1] - a[1])[0];
+    const topBucket = Object.entries(patterns.byWeekday[context.weekday]?.buckets || {}).sort((a, b) => b[1].total - a[1].total)[0];
+    const patternText = patterns.daysWithLogs
+      ? `La mayoria de ${dayNames[context.weekday]} suelen registrar ${topCategory ? topCategory[0] : "actividades"}${topBucket ? ` en la franja de ${topBucket[0]}` : ""}.`
+      : "Todavia hay poco historial; esta propuesta usa actividades activas y pendientes del perfil.";
+
+    return { iso, profile: context.profile, mode, patternText, plan, patterns, context };
+  }
+
+  function getSmartPlanForRender(iso, force = false) {
+    const key = `${activeProfile()}|${iso}|${state.smartPlannerMode}|${getTodayContext(iso).doneActivities.length}|${getTodayContext(iso).entries.length}`;
+    if (force || !state.smartPlannerPlan || state.smartPlannerKey !== key) {
+      state.smartPlannerPlan = generateSmartDayPlan(iso);
+      state.smartPlannerKey = key;
+    }
+    return state.smartPlannerPlan;
+  }
+
+  function saveSmartPlannedEntries(iso, plan) {
+    const day = ensureDay(iso);
+    const existing = Array.isArray(day.plannedEntries) ? day.plannedEntries.filter(x => x.status !== "planned") : [];
+    day.plannedEntries = existing.concat((plan || []).map(block => ({
+      id: block.id || uid(),
+      activityId: block.activityId,
+      start: block.start,
+      end: block.end,
+      minutes: ensureStep(block.minutes || (clockToMinutes(block.end) - clockToMinutes(block.start))),
+      reason: block.reason || "",
+      status: "planned",
+      createdAt: nowISODate(),
+    })));
+    saveDB();
+  }
+
+  function markPlannedEntryStatus(iso, blockId, status) {
+    const day = ensureDay(iso);
+    const entry = day.plannedEntries.find(x => x.id === blockId);
+    if (!entry) return null;
+    entry.status = status;
+    saveDB();
+    return entry;
+  }
+
+  function renderSmartPlanner() {
+    if (!els.smartPlannerWrap) return;
+    const iso = state.dateISO;
+    const proposal = getSmartPlanForRender(iso);
+    const plan = proposal.plan || [];
+    const saved = ensureDay(iso).plannedEntries.filter(x => x.status === "planned");
+    const visiblePlan = saved.length ? saved.map(x => {
+      const activity = aById(x.activityId);
+      return activity ? {
+        id: x.id,
+        start: x.start,
+        end: x.end,
+        minutes: x.minutes,
+        activityId: x.activityId,
+        title: activity.name,
+        category: activity.category,
+        reason: x.reason || "bloque planeado guardado",
+        energy: activity.energy || "",
+        confidence: 0.7,
+      } : null;
+    }).filter(Boolean) : plan;
+
+    els.smartPlannerWrap.innerHTML = `
+      <section class="smartPlanner" aria-label="Que hacemos hoy">
+        <div class="smartPlannerHeader">
+          <div>
+            <h3>Qu&eacute; hacemos hoy</h3>
+            <div class="muted">Propuesta local basada en el historial de ${activeProfile() === "alek" ? "Alek" : "Cata"}</div>
+          </div>
+          <div class="smartPlanActions">
+            <button class="small" type="button" data-smart-action="soft">M&aacute;s suave</button>
+            <button class="small" type="button" data-smart-action="productive">M&aacute;s productivo</button>
+            <button class="small" type="button" data-smart-action="refresh">Actualizar propuesta</button>
+          </div>
+        </div>
+        <div class="smartPatternBox">${escapeHTML(proposal.patternText)}</div>
+        ${visiblePlan.length ? `
+          <div class="smartPlanList">
+            ${visiblePlan.map(block => `
+              <div class="smartPlanItem" data-plan-id="${escapeHTML(block.id)}">
+                <div class="smartPlanTime">${escapeHTML(block.start)}<span>${escapeHTML(block.end)}</span></div>
+                <div class="smartPlanMain">
+                  <div class="smartPlanTitle">${escapeHTML(block.title)}</div>
+                  <div class="smartPlanMeta">
+                    <span class="tag">${escapeHTML(block.category)}</span>
+                    ${block.energy ? `<span class="tag">${escapeHTML(energyLabel(block.energy))}</span>` : ""}
+                    <span class="tag">${escapeHTML(fmtDurationMin(block.minutes))}</span>
+                    <span class="tag">${Math.round((block.confidence || 0) * 100)}% confianza</span>
+                  </div>
+                  <div class="smartPlanReason">${escapeHTML(block.reason)}</div>
+                </div>
+                <div class="smartPlanActions">
+                  <button class="small" type="button" data-smart-action="register" data-plan-id="${escapeHTML(block.id)}">Registrar</button>
+                  <button class="small" type="button" data-smart-action="change" data-plan-id="${escapeHTML(block.id)}">Cambiar</button>
+                  <button class="small danger" type="button" data-smart-action="remove" data-plan-id="${escapeHTML(block.id)}">Quitar</button>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+          <div class="smartPlanFooter">
+            <button class="btn" type="button" data-smart-action="use">Usar horario</button>
+          </div>
+        ` : `<div class="emptyState">No hay suficientes pendientes futuros para proponer horario sin tocar lo que ya existe.</div>`}
+      </section>
+    `;
+  }
+
+  function bindSmartPlanner(iso) {
+    if (!els.smartPlannerWrap || els.smartPlannerWrap.__boundSmartPlanner) return;
+    els.smartPlannerWrap.__boundSmartPlanner = true;
+    on(els.smartPlannerWrap, "click", e => {
+      const btn = e.target.closest("[data-smart-action]");
+      if (!btn) return;
+      iso = state.dateISO;
+      const action = btn.dataset.smartAction;
+      const proposal = getSmartPlanForRender(iso);
+      const plan = proposal.plan || [];
+      const planId = btn.dataset.planId || "";
+
+      if (action === "soft" || action === "productive") {
+        state.smartPlannerMode = action === "soft" ? "soft" : "productive";
+        getSmartPlanForRender(iso, true);
+        renderSmartPlanner();
+        return;
+      }
+
+      if (action === "refresh") {
+        state.smartPlannerMode = "balanced";
+        getSmartPlanForRender(iso, true);
+        renderSmartPlanner();
+        toast("Propuesta actualizada.", "ok");
+        return;
+      }
+
+      if (action === "use") {
+        saveSmartPlannedEntries(iso, plan);
+        renderToday();
+        toast("Horario planeado guardado en Firebase.", "ok");
+        return;
+      }
+
+      if (action === "remove") {
+        const day = ensureDay(iso);
+        const savedIdx = day.plannedEntries.findIndex(x => x.id === planId);
+        if (savedIdx >= 0) {
+          day.plannedEntries.splice(savedIdx, 1);
+          saveDB();
+        } else {
+          proposal.plan = plan.filter(x => x.id !== planId);
+        }
+        renderSmartPlanner();
+        return;
+      }
+
+      if (action === "change") {
+        const day = ensureDay(iso);
+        const savedBlock = day.plannedEntries.find(x => x.id === planId);
+        const block = plan.find(x => x.id === planId);
+        const used = new Set(plan.map(x => x.activityId).concat(day.plannedEntries.map(x => x.activityId)));
+        const scored = proposal.context.pendingActivities
+          .filter(a => !used.has(a.id))
+          .map(a => scoreActivityForToday(a, proposal.context, proposal.patterns))
+          .sort((a, b) => b.score - a.score)[0];
+        if ((!block && !savedBlock) || !scored) return toast("No encontre otra actividad adecuada para cambiar.", "warn");
+        if (savedBlock) {
+          savedBlock.activityId = scored.activity.id;
+          savedBlock.reason = scored.reason;
+          saveDB();
+        }
+        if (block) {
+          block.activityId = scored.activity.id;
+          block.title = scored.activity.name;
+          block.category = scored.activity.category;
+          block.energy = scored.activity.energy || "";
+          block.reason = scored.reason;
+          block.confidence = scored.confidence;
+        }
+        renderSmartPlanner();
+        return;
+      }
+
+      if (action === "register") {
+        const saved = ensureDay(iso).plannedEntries.find(x => x.id === planId);
+        const block = saved ? {
+          id: saved.id,
+          activityId: saved.activityId,
+          minutes: saved.minutes,
+          start: saved.start,
+        } : plan.find(x => x.id === planId);
+        const activity = block ? aById(block.activityId) : null;
+        if (!block || !activity) return toast("No encontre ese bloque planeado.", "warn");
+        if (!addTimeEntry(iso, activity, block.minutes, block.start)) return toast("Ese bloque se cruza con otro horario registrado.", "warn");
+        if (saved) markPlannedEntryStatus(iso, saved.id, "done");
+        maybeQueueTimeFollowUp(iso, block.start, block.minutes, activity.name);
+        state.smartPlannerPlan = null;
+        renderToday();
+        toast(`${activity.name} registrado en Firebase.`, "ok");
+      }
+    });
+  }
+
   const TAB_MAP = {
     today: { btn: els.btnToday, view: els.viewToday },
     agenda: { btn: els.btnAgenda, view: els.viewAgenda },
@@ -1664,6 +2176,8 @@
     renderBalancePill(iso);
     renderTimeTracker(iso);
     bindTimeTracker(iso);
+    renderSmartPlanner();
+    bindSmartPlanner(iso);
 
     const all = getFilteredActivities();
     const pending = all.filter(a => !isDoneFor(iso, a));
