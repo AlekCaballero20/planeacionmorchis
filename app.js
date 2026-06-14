@@ -12,287 +12,52 @@
 (() => {
   "use strict";
 
-  const DB_SCHEMA = 6;
-  const PROFILES = ["alek", "cata"];
-  const DURATION_STEP = 15;
-  const MAX_ENTRY_MINUTES = 24 * 60;
-  const RUNTIME_ID = `session_${Date.now().toString(16)}_${Math.random().toString(16).slice(2)}`;
-  const DEFAULT_ACTIVITIES = [
-    { id: "default_sleep", name: "Dormir", category: "Descanso", subcategory: "Sueño", type: "daily", energy: "low" },
-    { id: "default_breakfast", name: "Desayunar", category: "Comida", subcategory: "Desayuno", type: "daily", energy: "mid" },
-    { id: "default_lunch", name: "Almorzar", category: "Comida", subcategory: "Almuerzo", type: "daily", energy: "mid" },
-    { id: "default_dinner", name: "Cenar", category: "Comida", subcategory: "Cena", type: "daily", energy: "low" },
-  ];
-  const ROUTINE_PROMPTS = [
-    { key: "breakfast", activityId: "default_breakfast", label: "desayunar", question: "A esta hora sueles desayunar. ¿Ya desayunaste?", start: "09:00", end: "11:00", minutes: 30 },
-    { key: "lunch", activityId: "default_lunch", label: "almorzar", question: "A esta hora sueles almorzar. ¿Ya almorzaste?", start: "12:00", end: "14:00", minutes: 60 },
-    { key: "dinner", activityId: "default_dinner", label: "cenar", question: "A esta hora sueles cenar. ¿Ya cenaste?", start: "20:00", end: "22:00", minutes: 45 },
-  ];
-
-  const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-  const monthNamesShort = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
-  const monthNamesFull = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-
-  const $ = (sel, scope = document) => scope?.querySelector?.(sel) || null;
-  const $$ = (sel, scope = document) => Array.from(scope?.querySelectorAll?.(sel) || []);
-  const on = (el, evt, fn, opts) => el && el.addEventListener(evt, fn, opts);
-
-  const els = {
-    toastRegion: $("#toastRegion"),
-    modalOverlay: $("#modalOverlay"),
-    modalClose: $("#modalClose"),
-    modalTitle: $("#modalTitle"),
-    modalDesc: $("#modalDesc"),
-    modalContent: $("#modalContent"),
-    modalActions: $("#modalActions"),
-    appBoot: $("#appBoot"),
-    appInfo: $("#appInfo"),
-    cloudStatus: $("#cloudStatus"),
-    cloudStatusHint: $("#cloudStatusHint"),
-    footerStorageStatus: $("#footerStorageStatus"),
-
-    dateTitle: $("#dateTitle"),
-    selectedDayMeta: $("#selectedDayMeta"),
-    kpiDaily: $("#kpiDaily"),
-    kpiDailyHelp: $("#kpiDailyHelp"),
-    kpiCount: $("#kpiCount"),
-    kpiError: $("#kpiError"),
-    balancePill: $("#balancePill"),
-
-    search: $("#search"),
-    categoryFilter: $("#categoryFilter"),
-    modeFilter: $("#modeFilter"),
-    energyFilter: $("#energyFilter"),
-    chipPending: $("#chipPending"),
-    chipShowDone: $("#chipShowDone"),
-    btnResetFilters: $("#btnResetFilters"),
-    btnCollapseDone: $("#btnCollapseDone"),
-
-    dayNotes: $("#dayNotes"),
-    noteSaved: $("#noteSaved"),
-
-    btnToday: $("#btnToday"),
-    btnAgenda: $("#btnAgenda"),
-    btnWeek: $("#btnWeek"),
-    btnHistory: $("#btnHistory"),
-    btnStats: $("#btnStats"),
-    btnManage: $("#btnManage"),
-    btnSettings: $("#btnSettings"),
-
-    viewToday: $("#viewToday"),
-    viewAgenda: $("#viewAgenda"),
-    viewWeek: $("#viewWeek"),
-    viewHistory: $("#viewHistory"),
-    viewStats: $("#viewStats"),
-    viewManage: $("#viewManage"),
-    viewSettings: $("#viewSettings"),
-
-    prevDay: $("#prevDay"),
-    nextDay: $("#nextDay"),
-    todaySub: $("#todaySub"),
-    timeTrackerWrap: $("#timeTrackerWrap"),
-    smartPlannerWrap: $("#smartPlannerWrap"),
-    pendingList: $("#pendingList"),
-    doneList: $("#doneList"),
-    pendingCount: $("#pendingCount"),
-    doneCount: $("#doneCount"),
-    doneBucket: $("#doneBucket"),
-    btnCheckAll: $("#btnCheckAll"),
-    btnUncheckAll: $("#btnUncheckAll"),
-
-    agendaMonthLabel: $("#agendaMonthLabel"),
-    agendaCalendar: $("#agendaCalendar"),
-    agendaDayDetail: $("#agendaDayDetail"),
-    agendaSchedule: $("#agendaSchedule"),
-    prevMonth: $("#prevMonth"),
-    nextMonth: $("#nextMonth"),
-
-    prevWeek: $("#prevWeek"),
-    nextWeek: $("#nextWeek"),
-    weekGrid: $("#weekGrid"),
-    weekByDay: $("#weekByDay"),
-    weekByCategory: $("#weekByCategory"),
-    weekSub: $("#weekSub"),
-    weekInsight: $("#weekInsight"),
-
-    historyRange: $("#historyRange"),
-    historySummary: $("#historySummary"),
-    chartHistoryTrend: $("#chartHistoryTrend"),
-    historyTrendHint: $("#historyTrendHint"),
-    historyCalendar: $("#historyCalendar"),
-    historyHighlights: $("#historyHighlights"),
-    historyTimeline: $("#historyTimeline"),
-    historyTopActivities: $("#historyTopActivities"),
-
-    statsRange: $("#statsRange"),
-    statsConsistency: $("#statsConsistency"),
-    chartDone: $("#chartDone"),
-    statsByCategory: $("#statsByCategory"),
-    chartBalance: $("#chartBalance"),
-    chartBalanceHint: $("#chartBalanceHint"),
-    chartEnergy: $("#chartEnergy"),
-    chartEnergyHint: $("#chartEnergyHint"),
-    statsAvoided: $("#statsAvoided"),
-    statsTopActivities: $("#statsTopActivities"),
-    statsNarrative: $("#statsNarrative"),
-
-    btnAdd: $("#btnAdd"),
-    manageForm: $("#manageForm"),
-    mName: $("#mName"),
-    mCategory: $("#mCategory"),
-    mType: $("#mType"),
-    mSub: $("#mSub"),
-    mEnergy: $("#mEnergy"),
-    btnCancelEdit: $("#btnCancelEdit"),
-    btnSaveActivity: $("#btnSaveActivity"),
-    manageList: $("#manageList"),
-    manageSearch: $("#manageSearch"),
-    manageFilterType: $("#manageFilterType"),
-
-    btnExport2: $("#btnExport2"),
-    importFile2: $("#importFile2"),
-    btnExportCSV2: $("#btnExportCSV2"),
-    btnWipeAll: $("#btnWipeAll"),
-    btnProfileAlek: $("#btnProfileAlek"),
-    btnProfileCata: $("#btnProfileCata"),
-  };
-
-  function uid() {
-    return Math.random().toString(16).slice(2) + Date.now().toString(16);
+  const { config, dom, elements, utils, charts } = window.BitacoraModules || {};
+  if (!config || !dom || !elements || !utils || !charts) {
+    throw new Error("BitacoraModules no esta cargado. Revisa el orden de scripts en index.html.");
   }
 
-  function nowISODate() {
-    return new Date().toISOString();
-  }
+  const {
+    DB_SCHEMA,
+    PROFILES,
+    DURATION_STEP,
+    MAX_ENTRY_MINUTES,
+    RUNTIME_ID,
+    DEFAULT_ACTIVITIES,
+    ROUTINE_PROMPTS,
+    dayNames,
+    monthNamesShort,
+    monthNamesFull,
+  } = config;
 
-  function safeNumber(v, fallback = 0) {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : fallback;
-  }
-
-  function todayISO(d = new Date()) {
-    const x = new Date(d);
-    x.setHours(0, 0, 0, 0);
-    return x.toISOString().slice(0, 10);
-  }
-
-  function isoToDate(iso) {
-    return new Date(`${iso}T00:00:00`);
-  }
-
-  function addDays(iso, delta) {
-    const d = isoToDate(iso);
-    d.setDate(d.getDate() + delta);
-    return todayISO(d);
-  }
-
-  function startOfWeekISO(iso) {
-    const d = isoToDate(iso);
-    d.setDate(d.getDate() - d.getDay());
-    return todayISO(d);
-  }
-
-  function fmtDateLong(iso) {
-    return isoToDate(iso).toLocaleDateString("es-CO", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  }
-
-  function fmtDateShort(iso) {
-    const d = isoToDate(iso);
-    return `${d.getDate()} ${monthNamesShort[d.getMonth()]}`;
-  }
-
-  function escapeHTML(s) {
-    return String(s ?? "").replace(/[&<>"']/g, ch => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#039;",
-    }[ch]));
-  }
-
-  function csvEscape(v) {
-    const s = String(v ?? "");
-    return /[,"\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  }
-
-  function sortByLocale(a, b) {
-    return String(a).localeCompare(String(b), "es");
-  }
-
-  function unique(arr) {
-    return [...new Set(arr)];
-  }
-
-  function sum(arr) {
-    return arr.reduce((acc, n) => acc + safeNumber(n, 0), 0);
-  }
-
-  function avg(arr) {
-    return arr.length ? sum(arr) / arr.length : 0;
-  }
-
-  function fmtPct01(v) {
-    return `${Math.round((v || 0) * 100)}%`;
-  }
-
-  function roundToStep(mins, step = DURATION_STEP) {
-    const n = safeNumber(mins, 0);
-    if (n <= 0) return 0;
-    return Math.round(n / step) * step;
-  }
-
-  function ensureStep(mins, step = DURATION_STEP) {
-    const n = safeNumber(mins, 0);
-    if (n <= 0) return 0;
-    return Math.max(step, roundToStep(n, step));
-  }
-
-  function fmtDurationMin(mins) {
-    const n = safeNumber(mins, 0);
-    if (!n) return "0 min";
-    if (n < 60) return `${n} min`;
-    const h = Math.floor(n / 60);
-    const m = n % 60;
-    return m ? `${h}h ${m}m` : `${h}h`;
-  }
-
-  function nowHHMM() {
-    const d = new Date();
-    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  }
-
-  function parseDoneTime(val) {
-    if (typeof val === "string" && /^\d{2}:\d{2}$/.test(val)) return val;
-    return null;
-  }
-
-  function clockToMinutes(hhmm) {
-    const t = parseDoneTime(hhmm);
-    if (!t) return null;
-    const [h, m] = t.split(":").map(Number);
-    return h * 60 + m;
-  }
-
-  function toClock(totalMinutes) {
-    const mins = ((safeNumber(totalMinutes, 0) % 1440) + 1440) % 1440;
-    const h = String(Math.floor(mins / 60)).padStart(2, "0");
-    const m = String(mins % 60).padStart(2, "0");
-    return `${h}:${m}`;
-  }
-
-  function energyLabel(v) {
-    if (v === "low") return "Energía baja";
-    if (v === "mid") return "Energía media";
-    if (v === "high") return "Energía alta";
-    return "Sin energía";
-  }
-
+  const { $, $$, on } = dom;
+  const els = elements.createElements($);
+  const { drawLineChart, drawBarsChart } = charts;
+  const {
+    uid,
+    nowISODate,
+    safeNumber,
+    todayISO,
+    isoToDate,
+    addDays,
+    startOfWeekISO,
+    fmtDateLong,
+    fmtDateShort,
+    escapeHTML,
+    csvEscape,
+    sortByLocale,
+    unique,
+    sum,
+    avg,
+    fmtPct01,
+    ensureStep,
+    fmtDurationMin,
+    nowHHMM,
+    parseDoneTime,
+    clockToMinutes,
+    toClock,
+    energyLabel,
+  } = utils;
   let db = null;
   let state = createDefaultState();
   let saveQueue = Promise.resolve();
@@ -2662,96 +2427,6 @@
     const hasLogs = Object.values(db.profiles || {}).some(p => Object.keys(p?.logs || {}).length);
     if (!db.activities?.length && !hasLogs) setCloudStatus("empty");
     else setCloudStatus("ready");
-  }
-
-  function clearCanvas(canvas) {
-    if (!canvas) return null;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-    const ratio = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    const width = Math.max(320, Math.floor(rect.width || canvas.width || 800));
-    const height = Math.max(180, Math.floor(rect.height || canvas.height || 280));
-    canvas.width = Math.floor(width * ratio);
-    canvas.height = Math.floor(height * ratio);
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    ctx.clearRect(0, 0, width, height);
-    return { ctx, width, height };
-  }
-
-  function drawLineChart(canvas, values = []) {
-    const setup = clearCanvas(canvas);
-    if (!setup) return;
-    const { ctx, width, height } = setup;
-    const pad = 24;
-    const innerW = width - pad * 2;
-    const innerH = height - pad * 2;
-
-    ctx.strokeStyle = "rgba(216,199,244,.95)";
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= 4; i++) {
-      const y = pad + (innerH / 4) * i;
-      ctx.beginPath();
-      ctx.moveTo(pad, y);
-      ctx.lineTo(width - pad, y);
-      ctx.stroke();
-    }
-
-    if (!values.length) return;
-    const max = Math.max(100, ...values);
-    const stepX = values.length > 1 ? innerW / (values.length - 1) : innerW;
-
-    ctx.strokeStyle = "rgba(123,76,194,.95)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    values.forEach((v, i) => {
-      const x = pad + stepX * i;
-      const y = pad + innerH - (safeNumber(v) / max) * innerH;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-
-    ctx.fillStyle = "rgba(34,197,94,.9)";
-    values.forEach((v, i) => {
-      const x = pad + stepX * i;
-      const y = pad + innerH - (safeNumber(v) / max) * innerH;
-      ctx.beginPath();
-      ctx.arc(x, y, 2.8, 0, Math.PI * 2);
-      ctx.fill();
-    });
-  }
-
-  function drawBarsChart(canvas, values = [], labels = []) {
-    const setup = clearCanvas(canvas);
-    if (!setup) return;
-    const { ctx, width, height } = setup;
-    const pad = 24;
-    const baseY = height - 34;
-    const innerW = width - pad * 2;
-    const max = Math.max(1, ...values.map(v => safeNumber(v, 0)));
-    const gap = 12;
-    const barW = values.length ? Math.max(18, (innerW - gap * (values.length - 1)) / values.length) : 24;
-
-    ctx.strokeStyle = "rgba(216,199,244,.95)";
-    ctx.beginPath();
-    ctx.moveTo(pad, baseY);
-    ctx.lineTo(width - pad, baseY);
-    ctx.stroke();
-
-    values.forEach((v, i) => {
-      const n = safeNumber(v, 0);
-      const h = Math.max(2, (n / max) * (height - 80));
-      const x = pad + i * (barW + gap);
-      const y = baseY - h;
-      ctx.fillStyle = i % 2 === 0 ? "rgba(123,76,194,.82)" : "rgba(34,197,94,.72)";
-      ctx.fillRect(x, y, barW, h);
-      ctx.fillStyle = "rgba(107,96,122,.85)";
-      ctx.font = "11px system-ui";
-      ctx.textAlign = "center";
-      if (labels[i]) ctx.fillText(labels[i], x + barW / 2, baseY + 14);
-      ctx.fillText(String(Math.round(n)), x + barW / 2, y - 6);
-    });
   }
 
   function renderCurrentView() {
