@@ -1,0 +1,1093 @@
+/* ============================================================
+   theme-logbook.css
+   Bitácora - Alek & Cata
+   Capa de tema: cuaderno de navegación / bitácora de abordo.
+   Se carga DESPUÉS de styles.css y reescribe tokens + piezas clave.
+   No toca ids ni clases que use app.js: solo su apariencia.
+   ============================================================ */
+
+/* ---------------- Tokens ---------------- */
+:root {
+  /* Escritorio (fuera del cuaderno) */
+  --desk: #171426;
+  --desk2: #100e1c;
+  --deskInk: #cfc7e4;
+  --deskInkSoft: #8d84b3;
+
+  /* Papel */
+  --bg: #f6f1e6;
+  --bg2: #efe9db;
+  --bg3: #eae3d3;
+
+  --panel: #f6f1e6;
+  --panel2: #f1ebde;
+  --panel3: #eae3d3;
+  --panelSoft: rgba(246, 241, 230, 0.8);
+
+  /* Tinta */
+  --text: #2b2438;
+  --textSoft: #453c58;
+  --muted: #6a6280;
+  --muted2: #8c8499;
+
+  /* Reglones */
+  --line: #d6cdb9;
+  --line2: #c3b9a2;
+  --lineSoft: rgba(207, 198, 178, 0.55);
+
+  /* Violeta: el único acento fuerte */
+  --accent: #6c4ca8;
+  --accentDark: #4a3179;
+  --accentMid: #8467bd;
+  --accentSoft: rgba(108, 76, 168, 0.1);
+  --accentSoft2: rgba(108, 76, 168, 0.18);
+
+  /* Verde apagado: solo para lo cumplido */
+  --accent2: #6d9663;
+  --accent2Dark: #4d7245;
+  --accent2Soft: rgba(109, 150, 99, 0.14);
+
+  --danger: #a8443f;
+  --dangerSoft: rgba(168, 68, 63, 0.1);
+
+  --warn: #a5762f;
+  --warnSoft: rgba(165, 118, 47, 0.12);
+
+  --info: #5c7c9e;
+  --infoSoft: rgba(92, 124, 158, 0.12);
+
+  /* Magenta: lo personal, lo de ellos dos */
+  --magenta: #be4a88;
+  --magentaSoft: rgba(190, 74, 136, 0.12);
+
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+  --shadow2: 0 10px 26px rgba(23, 20, 38, 0.1);
+  --shadow3: 0 26px 70px rgba(23, 20, 38, 0.45);
+
+  /* El papel no tiene esquinas de widget */
+  --radius: 6px;
+  --radius2: 8px;
+  --radius3: 10px;
+  --radius4: 999px;
+
+  --focus: 0 0 0 3px rgba(108, 76, 168, 0.24);
+
+  --pad: 22px;
+  --gap: 22px;
+  --gap2: 12px;
+
+  --font: "Instrument Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  --hand: "Caveat", "Segoe Script", "Bradley Hand", "Brush Script MT", cursive;
+
+  --mono: "Instrument Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+
+  --fieldBg: rgba(255, 253, 247, 0.72);
+  --fieldBgFocus: #fffdf7;
+  --fieldBorder: #cfc6b2;
+
+  --selBg: rgba(108, 76, 168, 0.22);
+  --selText: #2b2438;
+
+  --maxW: 1420px;
+  --sideW: 392px;
+
+  --paperEdge: rgba(139, 126, 96, 0.28);
+}
+
+/* ---------------- Escritorio ---------------- */
+html {
+  background: var(--desk);
+}
+
+body {
+  background:
+    radial-gradient(120% 80% at 50% -10%, #221d38 0%, var(--desk) 46%, var(--desk2) 100%)
+    fixed;
+  color: var(--text);
+  letter-spacing: 0;
+}
+
+/* Grano de papel muy suave, sin ruido de textura falsa */
+.layout::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.55;
+  mix-blend-mode: multiply;
+  border-radius: inherit;
+  background-image:
+    radial-gradient(60% 40% at 18% 12%, rgba(176, 164, 134, 0.14), transparent 70%),
+    radial-gradient(55% 45% at 82% 72%, rgba(150, 140, 180, 0.13), transparent 70%);
+}
+
+/* ---------------- Cabecera: banda de escritorio ---------------- */
+.topbar {
+  /* Ya no es una barra flotante: es la tapa del cuaderno, se va con la página. */
+  position: static;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 0;
+  box-shadow: none;
+  align-items: flex-end;
+  gap: 18px;
+  padding: 18px 22px 0;
+  max-width: var(--maxW);
+  margin: 0 auto;
+  width: 100%;
+  position: relative;
+  z-index: 20;
+}
+
+.brand {
+  align-items: center;
+  gap: 14px;
+  min-width: 200px;
+  padding-bottom: 14px;
+}
+
+/* Rosa de los vientos en vez del cuadrito de logo */
+.logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: transparent;
+  font-size: 0;
+  position: relative;
+}
+
+.logo::before,
+.logo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+
+.logo::before {
+  border: 1px dashed rgba(185, 174, 224, 0.5);
+}
+
+.logo::after {
+  /* aguja de la brújula */
+  inset: 6px;
+  border-radius: 0;
+  background: linear-gradient(
+      to bottom,
+      rgba(174, 152, 232, 0.85) 0 50%,
+      rgba(174, 152, 232, 0.2) 50% 100%
+    );
+  clip-path: polygon(50% 0%, 62% 50%, 50% 100%, 38% 50%);
+}
+
+.brandText .title {
+  font-weight: 600;
+  font-size: 19px;
+  letter-spacing: 0.005em;
+  color: #efeaf8;
+}
+
+.brandText .title::before {
+  content: "Bitácora de abordo";
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--deskInkSoft);
+  margin-bottom: 4px;
+}
+
+.brandText .subtitle {
+  color: var(--deskInkSoft);
+  font-size: 12px;
+  max-width: 340px;
+}
+
+/* Perfiles: dos etiquetas de papel, no botones de SaaS */
+.profileToggle {
+  background: none;
+  border: 0;
+  padding: 0;
+  gap: 0;
+  display: flex;
+  align-items: flex-end;
+  align-self: flex-end;
+  padding-bottom: 14px;
+}
+
+.profileBtn {
+  font-family: var(--hand);
+  font-size: 21px;
+  font-weight: 500;
+  line-height: 1;
+  min-height: 0;
+  padding: 11px 20px 9px;
+  border: 0;
+  border-radius: 6px 6px 0 0;
+  background: var(--bg2);
+  color: #6c6480;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+  transform: rotate(1.4deg);
+  transition: transform var(--tMed) ease, background var(--tMed) ease,
+    color var(--tMed) ease;
+}
+
+.profileBtn + .profileBtn {
+  margin-left: -8px;
+  transform: rotate(-1.6deg);
+}
+
+.profileBtn:hover {
+  transform: rotate(1.4deg) translateY(-3px);
+}
+
+.profileBtn + .profileBtn:hover {
+  transform: rotate(-1.6deg) translateY(-3px);
+}
+
+.profileBtn.isActive,
+.profileBtn[aria-pressed="true"] {
+  background: linear-gradient(180deg, #7d5cbe, #5b3e96);
+  color: #fbf7ff;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.38);
+  transform: rotate(-1.4deg) translateY(-4px);
+  z-index: 2;
+}
+
+.profileBtn.isActive:hover,
+.profileBtn[aria-pressed="true"]:hover {
+  transform: rotate(-1.4deg) translateY(-6px);
+}
+
+/* Acciones globales, discretas sobre el escritorio */
+.topbarActions {
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.topbarUtility {
+  padding-bottom: 14px;
+}
+
+.topbarUtility .btn {
+  min-height: 36px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  border-radius: 8px;
+  border: 1px solid rgba(185, 174, 224, 0.28);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--deskInk);
+  box-shadow: none;
+}
+
+.topbarUtility .btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(185, 174, 224, 0.5);
+  color: #f2edff;
+  box-shadow: none;
+}
+
+/* ---------------- Pestañas: índices de cuaderno ---------------- */
+.tabs {
+  gap: 3px;
+  max-width: none;
+  align-items: flex-end;
+  padding-bottom: 0;
+  overflow: visible;
+  margin-bottom: -1px;
+}
+
+.tab {
+  min-height: 0;
+  padding: 10px 18px 12px;
+  border: 0;
+  border-radius: 8px 8px 0 0;
+  background: var(--bg2);
+  color: #7a7189;
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  box-shadow: inset 0 -3px 8px rgba(0, 0, 0, 0.05), 0 -2px 8px rgba(0, 0, 0, 0.22);
+  transition: padding var(--tMed) ease, color var(--tMed) ease,
+    background var(--tMed) ease;
+}
+
+.tab:hover {
+  background: var(--bg2);
+  color: var(--accentDark);
+  padding-bottom: 15px;
+}
+
+.tab:active {
+  transform: none;
+}
+
+.tab.isActive,
+.tab[aria-selected="true"] {
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 600;
+  padding-bottom: 18px;
+  border: 0;
+  box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.25);
+}
+
+.tab.isActive::after,
+.tab[aria-selected="true"]::after {
+  content: "";
+  display: block;
+  height: 2px;
+  margin-top: 6px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+/* ---------------- El cuaderno abierto ---------------- */
+.layout {
+  position: relative;
+  background: var(--bg);
+  border-radius: 4px;
+  padding: 30px 34px 36px;
+  box-shadow: var(--shadow3), 0 3px 10px rgba(0, 0, 0, 0.4);
+  gap: 0;
+  column-gap: var(--gap);
+}
+
+/* Costura central entre las dos páginas */
+.content {
+  border-left: 1px solid var(--line);
+  padding-left: var(--gap);
+  box-shadow: inset 14px 0 22px -18px rgba(23, 20, 38, 0.22);
+  position: relative;
+  z-index: 1;
+}
+
+.side {
+  position: relative;
+  z-index: 1;
+  padding-right: 2px;
+}
+
+@media (min-width: 981px) {
+  .side {
+    /* La topbar dejó de ser sticky, así que el offset ya no la esquiva. */
+    position: sticky;
+    top: 22px;
+    align-self: start;
+  }
+}
+
+.side,
+.content {
+  gap: 26px;
+  align-content: start;
+}
+
+/* ---------------- Tarjetas: hojas, no widgets ---------------- */
+.card {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.card + .card {
+  border-top: 1px dashed var(--line);
+  padding-top: 24px;
+}
+
+.cardHeader {
+  align-items: baseline;
+  margin-bottom: 14px;
+  border-bottom: 0;
+}
+
+.cardHeader h2 {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: #312942;
+  position: relative;
+  padding-bottom: 6px;
+}
+
+.cardHeader h2::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.75;
+}
+
+.cardHeader h3 {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.subTitle {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.divider {
+  background: var(--line);
+  opacity: 0.75;
+  margin: 18px 0;
+}
+
+.subcard {
+  background: rgba(255, 253, 247, 0.5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+
+/* ---------------- Instrumentos del día (KPIs) ---------------- */
+.kpis,
+.kpis3,
+.dashKpis {
+  gap: 20px;
+}
+
+.kpi,
+.dashKpi,
+.statCard,
+.summaryCard {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+.kpi::before,
+.dashKpi::before {
+  display: none;
+}
+
+.kpiLabel,
+.dashKpiLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.kpiValue,
+.dashKpiValue {
+  font-family: var(--hand);
+  font-size: 40px;
+  font-weight: 500;
+  line-height: 0.95;
+  margin-top: 8px;
+  color: var(--accentDark);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpiHelp,
+.dashKpiHelp {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid var(--line);
+  line-height: 1.35;
+}
+
+/* Balance del día */
+.balanceRow {
+  align-items: center;
+}
+
+.balanceLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.balancePill {
+  font-family: var(--hand);
+  font-size: 19px;
+  border: 0;
+  border-bottom: 2px solid var(--magenta);
+  border-radius: 0;
+  background: none;
+  color: var(--magenta);
+  padding: 0 2px 2px;
+}
+
+/* ---------------- Controles ---------------- */
+.btn {
+  min-height: 40px;
+  padding: 9px 15px;
+  border-radius: 8px;
+  border: 1px solid rgba(108, 76, 168, 0.4);
+  background: rgba(108, 76, 168, 0.07);
+  color: var(--accentDark);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  box-shadow: none;
+}
+
+.btn:hover {
+  background: rgba(108, 76, 168, 0.14);
+  border-color: rgba(108, 76, 168, 0.6);
+  box-shadow: none;
+}
+
+.btn.ghost {
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 247, 0.5);
+  color: var(--textSoft);
+}
+
+.btn.ghost:hover {
+  background: #fffdf7;
+  border-color: var(--line2);
+  color: var(--accentDark);
+}
+
+.btn.danger {
+  color: #8f3a35;
+  border-color: rgba(168, 68, 63, 0.4);
+  background: rgba(168, 68, 63, 0.07);
+}
+
+.iconBtn {
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 247, 0.5);
+  color: var(--muted);
+}
+
+.iconBtn:hover {
+  color: var(--accentDark);
+  border-color: var(--accent);
+  background: rgba(108, 76, 168, 0.08);
+}
+
+.chip {
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 247, 0.5);
+  color: var(--textSoft);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.chip[aria-pressed="true"] {
+  border-color: rgba(108, 76, 168, 0.45);
+  background: rgba(108, 76, 168, 0.1);
+  color: var(--accentDark);
+}
+
+.input,
+.select,
+.textarea {
+  border-radius: 8px;
+  border: 1px solid var(--fieldBorder);
+  background: var(--fieldBg);
+  padding: 11px 12px;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  border-color: rgba(108, 76, 168, 0.6);
+  box-shadow: var(--focus);
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+/* Notas del capitán: renglones de verdad */
+#dayNotes {
+  font-family: var(--hand);
+  font-size: 21px;
+  line-height: 30px;
+  color: #3a3150;
+  padding: 9px 14px;
+  background-color: rgba(255, 253, 247, 0.55);
+  background-image: repeating-linear-gradient(
+    180deg,
+    transparent 0 29px,
+    var(--lineSoft) 29px 30px
+  );
+  background-attachment: local;
+}
+
+#dayNotes::placeholder {
+  color: rgba(107, 96, 122, 0.55);
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: rgba(107, 96, 122, 0.6);
+}
+
+.pill,
+.tag {
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 247, 0.55);
+  color: var(--muted);
+  font-size: 11px;
+  padding: 3px 9px;
+}
+
+.pillGood {
+  border-color: rgba(109, 150, 99, 0.45);
+  background: var(--accent2Soft);
+  color: var(--accent2Dark);
+}
+
+.pillWarn {
+  border-color: rgba(165, 118, 47, 0.4);
+  background: var(--warnSoft);
+  color: #7d5a24;
+}
+
+.pillDanger {
+  border-color: rgba(168, 68, 63, 0.4);
+  background: var(--dangerSoft);
+  color: #8f3a35;
+}
+
+/* ---------------- Plan de navegación (lista del día) ---------------- */
+.bucketTitle {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.list {
+  gap: 0;
+}
+
+.item {
+  align-items: flex-start;
+  gap: 13px;
+  padding: 13px 8px 13px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--lineSoft);
+  border-radius: 4px;
+  background: transparent;
+}
+
+.item:hover {
+  background: rgba(108, 76, 168, 0.045);
+  border-color: var(--lineSoft);
+  box-shadow: none;
+}
+
+.item:active {
+  transform: none;
+}
+
+.item.isDone {
+  opacity: 1;
+}
+
+.itemTitle {
+  font-weight: 500;
+  font-size: 15px;
+  color: var(--text);
+  position: relative;
+  display: inline;
+}
+
+/* Tachado de tinta sobre lo cumplido */
+.item.isDone .itemTitle {
+  color: var(--muted);
+}
+
+.item.isDone .itemTitle::after {
+  content: "";
+  position: absolute;
+  left: -2px;
+  right: -4px;
+  top: 55%;
+  height: 1.5px;
+  border-radius: 2px;
+  background: var(--muted2);
+  opacity: 0.8;
+  transform: rotate(-0.4deg);
+}
+
+.chk {
+  width: 19px;
+  height: 19px;
+  border-radius: 4px;
+  border: 1.5px solid #9e9689;
+  background: rgba(255, 255, 255, 0.5);
+  margin-top: 3px;
+  box-shadow: none;
+}
+
+.chk:hover {
+  border-color: var(--accent);
+}
+
+.chk:checked {
+  border-color: var(--accent2);
+  background: var(--accent2Soft);
+  box-shadow: none;
+}
+
+.chk:checked::after {
+  content: "✓";
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent2Dark);
+}
+
+.emptyState {
+  border: 1px dashed var(--line);
+  background: transparent;
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-family: var(--hand);
+  font-size: 19px;
+}
+
+.hint {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.hint.tiny {
+  font-size: 12px;
+}
+
+/* Pista larga del panel lateral: nota manuscrita al margen */
+.filters .hint.tiny,
+.quickActions + .divider + .hint {
+  font-family: var(--hand);
+  font-size: 18px;
+  line-height: 1.45;
+  color: #4b4165;
+  border-left: 2px solid var(--accentSoft2);
+  padding-left: 12px;
+}
+
+/* ---------------- Agenda, semana, histórico ---------------- */
+.calCell,
+.calDay,
+.dayCard,
+.heatCell,
+.scheduleBlock,
+.scheduleItem,
+.smartPlanItem,
+.timelineItem,
+.highlightItem,
+.topItem,
+.manageItem,
+.insightCard,
+.narrativeBox,
+.smartPatternBox,
+.timeCoachBox,
+.sleepCoach,
+.agendaNote {
+  border-radius: var(--radius);
+  border-color: var(--line);
+  background: rgba(255, 253, 247, 0.5);
+  box-shadow: none;
+}
+
+/* Bloques grandes que en el tema anterior eran tarjetas blancas */
+.timeTracker,
+.smartPlanner,
+.manageForm,
+.agendaCalendarWrap,
+.agendaDetailWrap,
+.agendaScheduleWrap,
+.timeEntryRow {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 253, 247, 0.45);
+  box-shadow: none;
+}
+
+.smartPlanner {
+  border-color: rgba(108, 76, 168, 0.3);
+  background: rgba(108, 76, 168, 0.04);
+}
+
+.calDayHeader,
+.agendaDayHeader,
+.dayName {
+  color: var(--muted2);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.dayDate,
+.calPct {
+  font-variant-numeric: tabular-nums;
+}
+
+.progress,
+.bar {
+  border-radius: 999px;
+  background: rgba(207, 198, 178, 0.55);
+}
+
+.chartWrap {
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 247, 0.55);
+}
+
+/* Ruta del día: la línea punteada del recorrido */
+.scheduleTimeline {
+  position: relative;
+}
+
+.scheduleTime,
+.smartPlanTime {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+/* ---------------- Modal y avisos ---------------- */
+.modalOverlay {
+  background: rgba(16, 14, 28, 0.62);
+  backdrop-filter: blur(3px);
+}
+
+.modal {
+  background: var(--bg);
+  border: 1px solid var(--paperEdge);
+  border-radius: 8px;
+  box-shadow: var(--shadow3);
+}
+
+.toast {
+  background: var(--bg);
+  border: 1px solid var(--line2);
+  border-radius: 8px;
+  box-shadow: var(--shadow2);
+  color: var(--text);
+}
+
+.toastOk {
+  border-left: 3px solid var(--accent2);
+}
+
+.toastWarn {
+  border-left: 3px solid var(--warn);
+}
+
+.toastErr {
+  border-left: 3px solid var(--danger);
+}
+
+/* Boot y logo de carga, en clave de bitácora */
+.appBoot {
+  background: radial-gradient(120% 80% at 50% 0%, #221d38, var(--desk2));
+}
+
+.appBootCard {
+  background: var(--bg);
+  border: 1px solid var(--paperEdge);
+  border-radius: 8px;
+  box-shadow: var(--shadow3);
+}
+
+.appBootLogo {
+  border-radius: 50%;
+  background: linear-gradient(135deg, #7d5cbe, #5b3e96);
+  font-family: var(--hand);
+  font-size: 26px;
+  font-weight: 500;
+}
+
+.appBootTitle {
+  font-family: var(--hand);
+  font-size: 30px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.appBootText {
+  color: var(--muted);
+}
+
+/* ---------------- Pie: microdetalles de bitácora ---------------- */
+.footer {
+  max-width: var(--maxW);
+  margin: 0 auto;
+  padding: 16px 22px 26px;
+  border-top: 0;
+  background: transparent;
+  color: var(--deskInkSoft);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+
+.footer .muted {
+  color: var(--deskInkSoft);
+}
+
+/* ---------------- Detalles decorativos ---------------- */
+.logEyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.logCoords {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  color: var(--deskInkSoft);
+  white-space: nowrap;
+}
+
+.logStamp {
+  display: inline-block;
+  border: 1.5px solid var(--magenta);
+  color: var(--magenta);
+  border-radius: 4px;
+  padding: 3px 9px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  transform: rotate(-2deg);
+  opacity: 0.85;
+}
+
+.logEntryNo {
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--deskInk);
+}
+
+.logDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent2);
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* Sello de agua del cuaderno */
+.layout::before {
+  content: "";
+  position: absolute;
+  right: 34px;
+  bottom: 34px;
+  width: 128px;
+  height: 128px;
+  pointer-events: none;
+  opacity: 0.09;
+  z-index: 0;
+  background: no-repeat center / contain
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='none' stroke='%236C4CA8' stroke-width='1.6'%3E%3Ccircle cx='50' cy='50' r='46'/%3E%3Ccircle cx='50' cy='50' r='38' stroke-dasharray='2 4'/%3E%3Cpath d='M50 8 L56 44 L50 50 L44 44 Z' fill='%236C4CA8' stroke='none'/%3E%3Cpath d='M50 92 L44 56 L50 50 L56 56 Z'/%3E%3Cpath d='M8 50 L44 44 L50 50 L44 56 Z'/%3E%3Cpath d='M92 50 L56 44 L50 50 L56 56 Z'/%3E%3C/svg%3E");
+}
+
+/* ---------------- Responsive ---------------- */
+@media (max-width: 980px) {
+  .content {
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px dashed var(--line);
+    padding-top: 26px;
+    box-shadow: none;
+  }
+
+  .layout {
+    row-gap: 26px;
+  }
+}
+
+@media (max-width: 720px) {
+  :root {
+    --pad: 14px;
+    --gap: 14px;
+  }
+
+  .topbar {
+    padding: 14px 12px 0;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .brand,
+  .profileToggle,
+  .topbarUtility {
+    padding-bottom: 0;
+  }
+
+  .profileToggle {
+    align-self: flex-start;
+  }
+
+  .tabs {
+    overflow-x: auto;
+    margin-bottom: -1px;
+  }
+
+  .layout {
+    padding: 22px 16px 28px;
+    border-radius: 0;
+  }
+
+  .layout::before {
+    display: none;
+  }
+
+  .kpis,
+  .kpis3 {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  .kpiValue,
+  .dashKpiValue {
+    font-size: 30px;
+  }
+}

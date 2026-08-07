@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#f8f5ff" />
+  <meta name="theme-color" content="#171426" />
   <meta name="color-scheme" content="light" />
 
   <title>Bitácora - Alek & Cata</title>
@@ -14,7 +14,17 @@
   />
 
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600&family=Instrument+Sans:wght@400;500;600;700&display=swap"
+  />
+
   <link id="appStyles" rel="stylesheet" href="./styles.css" />
+
+  <!-- Capa de tema: bitácora de abordo. Va después para poder reescribir tokens. -->
+  <link id="appTheme" rel="stylesheet" href="./theme-logbook.css" />
 
   <!--
     CSS mínimo de seguridad.
@@ -23,15 +33,15 @@
   -->
   <style>
     html {
-      background: #f8f5ff;
-      color: #241b35;
+      background: #171426;
+      color: #2b2438;
     }
 
     body {
       margin: 0;
       min-height: 100vh;
-      background: #f8f5ff;
-      color: #241b35;
+      background: #171426;
+      color: #2b2438;
       font-family:
         ui-sans-serif,
         system-ui,
@@ -116,9 +126,7 @@
       display: grid;
       place-items: center;
       padding: 24px;
-      background:
-        radial-gradient(circle at top left, rgba(205, 183, 238, 0.45), transparent 32%),
-        linear-gradient(135deg, #f8f5ff, #fffaff);
+      background: radial-gradient(120% 80% at 50% 0%, #221d38, #100e1c);
     }
 
     .appBootCard {
@@ -283,6 +291,8 @@
         </nav>
 
         <div class="topbarUtility" aria-label="Acciones rápidas globales">
+          <span class="logCoords" aria-hidden="true">04°36′N · 74°05′W</span>
+
           <button class="btn ghost" id="btnTodayQuick" type="button" title="Volver a hoy visualmente">
             Ir a hoy
           </button>
@@ -446,6 +456,8 @@
             </div>
 
             <div class="mini">
+              <span class="logStamp" aria-hidden="true">EN CURSO</span>
+
               <button class="btn ghost" id="btnCollapseDone" type="button" title="Colapsar o expandir hechas">
                 Hechas: ON
               </button>
@@ -899,7 +911,11 @@
     </main>
 
     <footer class="footer" role="contentinfo">
-      <div class="muted" id="footerStorageStatus">Firebase</div>
+      <div class="muted">
+        <span class="logEntryNo" id="logEntryNo">ENTRADA #0000</span>
+        · <span id="logUpdatedAt">—</span>
+        · <span id="footerStorageStatus">Firebase</span><span class="logDot" aria-hidden="true"></span>
+      </div>
       <div class="muted">
         Bitácora para humanos con demasiadas cosas valiosas en la cabeza ❤️
       </div>
@@ -980,6 +996,26 @@
       window.addEventListener("load", () => {
         setTimeout(hideBoot, 450);
       });
+
+      // Microdetalles de bitácora: número de entrada = día del año, y hora real.
+      (function stampLogMeta() {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), 0, 0);
+        const dayOfYear = Math.floor((now - start) / 86400000);
+
+        const entry = document.getElementById("logEntryNo");
+        const updated = document.getElementById("logUpdatedAt");
+
+        if (entry) {
+          entry.textContent = "ENTRADA #" + String(dayOfYear).padStart(4, "0");
+        }
+
+        if (updated) {
+          updated.textContent =
+            "Última actualización " +
+            now.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+        }
+      })();
 
       window.BitacoraUI = window.BitacoraUI || {};
       window.BitacoraUI.hideBoot = hideBoot;

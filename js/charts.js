@@ -6,6 +6,17 @@
 
   const { safeNumber } = window.BitacoraModules.utils;
 
+  /* Paleta de bitácora: tinta sobre papel, no gráficos de tablero oscuro. */
+  const INK = {
+    grid: "rgba(139,126,96,.28)",
+    axis: "rgba(139,126,96,.5)",
+    line: "#6C4CA8",
+    point: "#BE4A88",
+    barA: "#6C4CA8",
+    barB: "#5C7C9E",
+    label: "rgba(69,60,88,.8)"
+  };
+
   function clearCanvas(canvas) {
     if (!canvas) return null;
     const ctx = canvas.getContext("2d");
@@ -28,7 +39,7 @@
     const innerW = width - pad * 2;
     const innerH = height - pad * 2;
 
-    ctx.strokeStyle = "rgba(255,255,255,.12)";
+    ctx.strokeStyle = INK.grid;
     ctx.lineWidth = 1;
     for (let i = 0; i <= 4; i += 1) {
       const y = pad + (innerH / 4) * i;
@@ -42,7 +53,7 @@
     const max = Math.max(100, ...values);
     const stepX = values.length > 1 ? innerW / (values.length - 1) : innerW;
 
-    ctx.strokeStyle = "#7dd3fc";
+    ctx.strokeStyle = INK.line;
     ctx.lineWidth = 3;
     ctx.beginPath();
     values.forEach((v, i) => {
@@ -56,7 +67,7 @@
     values.forEach((v, i) => {
       const x = pad + stepX * i;
       const y = pad + innerH - (safeNumber(v) / max) * innerH;
-      ctx.fillStyle = "#fef08a";
+      ctx.fillStyle = INK.point;
       ctx.beginPath();
       ctx.arc(x, y, 3.5, 0, Math.PI * 2);
       ctx.fill();
@@ -74,7 +85,7 @@
     const gap = 12;
     const barW = values.length ? Math.max(18, (innerW - gap * (values.length - 1)) / values.length) : 24;
 
-    ctx.strokeStyle = "rgba(255,255,255,.12)";
+    ctx.strokeStyle = INK.axis;
     ctx.beginPath();
     ctx.moveTo(pad, baseY);
     ctx.lineTo(width - pad, baseY);
@@ -85,10 +96,10 @@
       const h = Math.max(2, (n / max) * (height - 80));
       const x = pad + i * (barW + gap);
       const y = baseY - h;
-      ctx.fillStyle = i % 2 ? "#86efac" : "#7dd3fc";
+      ctx.fillStyle = i % 2 ? INK.barB : INK.barA;
       ctx.fillRect(x, y, barW, h);
-      ctx.fillStyle = "rgba(255,255,255,.76)";
-      ctx.font = "11px system-ui";
+      ctx.fillStyle = INK.label;
+      ctx.font = '11px "Instrument Sans", system-ui, sans-serif';
       ctx.fillText(String(labels[i] || ""), x, height - 12);
     });
   }
