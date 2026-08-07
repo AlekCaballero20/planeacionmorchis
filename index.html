@@ -21,10 +21,15 @@
     href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600&family=Instrument+Sans:wght@400;500;600;700&display=swap"
   />
 
-  <link id="appStyles" rel="stylesheet" href="./styles.css" />
+  <!--
+    ?v= es control de caché. Sin esto, el navegador se queda con la versión
+    vieja de un archivo y la nueva de otro, y la app queda a medio actualizar.
+    Sube este número cada vez que publiques cambios en CSS o JS.
+  -->
+  <link id="appStyles" rel="stylesheet" href="./styles.css?v=8" />
 
   <!-- Capa de tema: bitácora de abordo. Va después para poder reescribir tokens. -->
-  <link id="appTheme" rel="stylesheet" href="./theme-logbook.css" />
+  <link id="appTheme" rel="stylesheet" href="./theme-logbook.css?v=8" />
 
   <!--
     CSS mínimo de seguridad.
@@ -464,6 +469,9 @@
             </div>
           </div>
 
+          <!-- Plan primero: qué se quiere hacer. Después el registro: qué se hizo. -->
+          <div id="dayPlanWrap"></div>
+
           <div id="timeTrackerWrap"></div>
           <div id="smartPlannerWrap"></div>
 
@@ -561,6 +569,20 @@
           </div>
 
           <div class="weekGrid" id="weekGrid"></div>
+
+          <div class="divider" aria-hidden="true"></div>
+
+          <div class="subcard" aria-label="Plan de la semana">
+            <div class="subTitle">Plan de la semana</div>
+
+            <div id="weekPlanGrid"></div>
+          </div>
+
+          <div class="subcard" aria-label="Sin fecha todavía">
+            <div class="subTitle">Sin fecha todavía</div>
+
+            <div id="weekUnscheduled"></div>
+          </div>
 
           <div class="divider" aria-hidden="true"></div>
 
@@ -927,13 +949,13 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 
   <!-- App scripts -->
-  <script src="./firebase.js"></script>
-  <script src="./js/config.js"></script>
-  <script src="./js/utils.js"></script>
-  <script src="./js/dom.js"></script>
-  <script src="./js/elements.js"></script>
-  <script src="./js/charts.js"></script>
-  <script src="./app.js"></script>
+  <script src="./firebase.js?v=8"></script>
+  <script src="./js/config.js?v=8"></script>
+  <script src="./js/utils.js?v=8"></script>
+  <script src="./js/dom.js?v=8"></script>
+  <script src="./js/elements.js?v=8"></script>
+  <script src="./js/charts.js?v=8"></script>
+  <script src="./app.js?v=8"></script>
 
   <script>
     (function () {

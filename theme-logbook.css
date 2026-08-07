@@ -802,6 +802,519 @@ body {
   padding-left: 12px;
 }
 
+/* ============================================================
+   Plan del día
+   El plan es la página izquierda de la bitácora: lo que se quiere
+   que pase. Se distingue del registro por la línea de ruta punteada
+   y por la tinta violeta, no por ser otra caja.
+   ============================================================ */
+.dayPlan {
+  margin-bottom: 22px;
+  padding-bottom: 20px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.dayPlanHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.dayPlanSummary {
+  margin-top: 5px;
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.planList {
+  position: relative;
+  display: grid;
+  gap: 2px;
+}
+
+/* La ruta del día: una línea punteada que enhebra los bloques. */
+.planList::before {
+  content: "";
+  position: absolute;
+  left: 61px;
+  top: 12px;
+  bottom: 12px;
+  border-left: 1px dashed #b9b0c7;
+}
+
+.planBlock {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  gap: 14px;
+  align-items: start;
+  padding: 12px 8px 12px 0;
+  border-radius: 5px;
+  border-bottom: 1px solid var(--lineSoft);
+}
+
+.planBlock:hover {
+  background: rgba(108, 76, 168, 0.045);
+}
+
+.planTime {
+  position: relative;
+  text-align: right;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--textSoft);
+  padding-top: 1px;
+}
+
+/* El nodo de la ruta, sobre la línea punteada. */
+.planTime::after {
+  content: "";
+  position: absolute;
+  right: -14px;
+  top: 4px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: var(--bg);
+}
+
+.planTimeLoose {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+/* Sin hora: el nodo va hueco y punteado, no ancla al reloj. */
+.planTimeLoose::after {
+  border-style: dotted;
+  border-color: var(--muted2);
+}
+
+.planBlock.is-done .planTime::after {
+  background: var(--accent2);
+  border-color: var(--accent2);
+}
+
+.planBlock.is-skipped .planTime::after {
+  border-color: var(--muted2);
+  background: var(--bg2);
+}
+
+.planTitle {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  position: relative;
+  display: inline;
+}
+
+.planBlock.is-skipped .planTitle {
+  color: var(--muted);
+}
+
+.planBlock.is-skipped .planTitle::after {
+  content: "";
+  position: absolute;
+  left: -2px;
+  right: -4px;
+  top: 55%;
+  height: 1.5px;
+  border-radius: 2px;
+  background: var(--muted2);
+  opacity: 0.75;
+  transform: rotate(-0.4deg);
+}
+
+.planMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.tagShared {
+  border-color: rgba(190, 74, 136, 0.45);
+  background: var(--magentaSoft);
+  color: #96376a;
+}
+
+.tagStatus {
+  border-style: dashed;
+}
+
+.planBlock.is-done .tagStatus {
+  border-color: rgba(109, 150, 99, 0.5);
+  border-style: solid;
+  background: var(--accent2Soft);
+  color: var(--accent2Dark);
+}
+
+.planNote {
+  margin-top: 7px;
+  font-family: var(--hand);
+  font-size: 18px;
+  line-height: 1.4;
+  color: #4b4165;
+}
+
+.planReason {
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--muted2);
+  font-style: italic;
+}
+
+.planActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: flex-end;
+}
+
+.miniBtn2 {
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 247, 0.55);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 5px 9px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--tMed) ease, color var(--tMed) ease,
+    border-color var(--tMed) ease;
+}
+
+.miniBtn2:hover {
+  border-color: var(--accent);
+  color: var(--accentDark);
+  background: rgba(108, 76, 168, 0.08);
+}
+
+.miniBtn2.isDanger:hover {
+  border-color: rgba(168, 68, 63, 0.5);
+  color: #8f3a35;
+  background: rgba(168, 68, 63, 0.07);
+}
+
+.planBlock.is-done [data-plan="done"] {
+  border-color: rgba(109, 150, 99, 0.5);
+  background: var(--accent2Soft);
+  color: var(--accent2Dark);
+}
+
+.planEmpty {
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  font-family: var(--hand);
+  font-size: 19px;
+  line-height: 1.4;
+  color: #5c5470;
+}
+
+.planDrift {
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: var(--muted);
+  border-left: 2px solid var(--accentSoft2);
+  padding-left: 11px;
+}
+
+/* Formulario del bloque */
+.planForm {
+  display: grid;
+  gap: 14px;
+}
+
+.planFormRow {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.planCheckLabel {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13.5px;
+  color: var(--textSoft);
+  cursor: pointer;
+}
+
+/* ---------------- Plan de la semana ---------------- */
+.weekPlan {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(122px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.weekPlanDay {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 253, 247, 0.45);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.weekPlanDay.isToday {
+  border-color: rgba(108, 76, 168, 0.5);
+  background: rgba(108, 76, 168, 0.05);
+}
+
+.weekPlanHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.weekPlanName {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.weekPlanDate {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.weekPlanCount {
+  font-family: var(--hand);
+  font-size: 22px;
+  line-height: 1;
+  color: var(--accentDark);
+  font-variant-numeric: tabular-nums;
+}
+
+.weekPlanCount.isEmpty {
+  color: var(--muted2);
+  opacity: 0.6;
+}
+
+.weekPlanList {
+  display: grid;
+  gap: 5px;
+  min-height: 0;
+}
+
+.weekPlanItem {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--textSoft);
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: rgba(108, 76, 168, 0.06);
+  border-left: 2px solid var(--accent);
+  min-width: 0;
+}
+
+.weekPlanItem.is-done {
+  border-left-color: var(--accent2);
+  background: var(--accent2Soft);
+  color: var(--accent2Dark);
+}
+
+.weekPlanItem.is-skipped {
+  border-left-color: var(--muted2);
+  background: transparent;
+  color: var(--muted2);
+  text-decoration: line-through;
+}
+
+.weekPlanTime {
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.weekPlanTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.weekPlanShared {
+  color: var(--magenta);
+  flex: 0 0 auto;
+}
+
+.weekPlanAdd {
+  margin-top: auto;
+  border: 1px dashed var(--line2);
+  background: none;
+  color: var(--muted);
+  border-radius: 5px;
+  padding: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color var(--tMed) ease, border-color var(--tMed) ease,
+    background var(--tMed) ease;
+}
+
+.weekPlanAdd:hover {
+  color: var(--accentDark);
+  border-color: var(--accent);
+  background: rgba(108, 76, 168, 0.07);
+}
+
+/* ---------------- Sin fecha todavía ---------------- */
+.looseHint {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 10px 0 12px;
+}
+
+.looseList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.looseItem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 253, 247, 0.55);
+  padding: 6px 8px 6px 14px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  color: var(--textSoft);
+  transition: border-color var(--tMed) ease, background var(--tMed) ease;
+}
+
+.looseItem:hover {
+  border-color: var(--accent);
+  background: rgba(108, 76, 168, 0.07);
+}
+
+.looseCta {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--accentDark);
+  border-left: 1px solid var(--line);
+  padding-left: 9px;
+}
+
+/* ---------------- Elegir día ---------------- */
+.assignDays {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.assignDay {
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 253, 247, 0.5);
+  padding: 11px 9px;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: border-color var(--tMed) ease, background var(--tMed) ease;
+}
+
+.assignDay:hover {
+  border-color: var(--accent);
+  background: rgba(108, 76, 168, 0.08);
+}
+
+.assignDay.isToday {
+  border-color: rgba(108, 76, 168, 0.5);
+}
+
+.assignDayName {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+.assignDayDate {
+  font-size: 13.5px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.assignDayCount {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ---------------- Horario en dos capas ---------------- */
+.scheduleLayerLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted2);
+  margin-bottom: 8px;
+}
+
+.schedulePlanned {
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed var(--line);
+}
+
+/* Lo previsto se dibuja en trazo punteado: todavía no ha pasado. */
+.scheduleSlot.isPlanned .scheduleBlock {
+  border-style: dashed;
+  background: rgba(108, 76, 168, 0.04);
+}
+
+.scheduleSlot.isPlanned.is-done .scheduleBlock {
+  border-style: solid;
+  background: var(--accent2Soft);
+}
+
+.scheduleSlot.isPlanned.is-skipped {
+  opacity: 0.6;
+}
+
+@media (max-width: 720px) {
+  .planBlock {
+    grid-template-columns: 46px 1fr;
+  }
+
+  .planList::before {
+    left: 55px;
+  }
+
+  .planActions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    margin-top: 8px;
+  }
+}
+
 /* ---------------- Agenda, semana, histórico ---------------- */
 .calCell,
 .calDay,

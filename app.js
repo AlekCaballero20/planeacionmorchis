@@ -219,6 +219,9 @@
         alek: emptyProfile(),
         cata: emptyProfile(),
       },
+      /* Plan compartido: los bloques de a dos viven una sola vez, fuera de los
+         perfiles, y se muestran en ambos. Una sola fuente de verdad. */
+      sharedPlan: {},
     };
   }
 
@@ -273,6 +276,48 @@
     return raw.meta;
   }
 
+  /* Un bloque planeado puede ir con hora ("06:30") o suelto en el día (start null).
+     Sin hora es intención: qué se quiere hacer ese día, sin comprometer el reloj. */
+  function normalizePlannedBlock(x) {
+    if (!x || typeof x !== "object" || !x.activityId) return null;
+
+    const start = parseDoneTime(x.start);
+    const startMin = start ? clockToMinutes(start) : null;
+    let minutes = ensureStep(x.minutes);
+
+    if (!minutes && start) {
+      const endMin = clockToMinutes(parseDoneTime(x.end));
+      if (endMin != null && startMin != null && endMin > startMin) minutes = ensureStep(endMin - startMin);
+    }
+
+    minutes = Math.min(Math.max(0, minutes), MAX_ENTRY_MINUTES);
+    const end = start && minutes > 0 ? toClock(startMin + minutes) : null;
+
+    return {
+      id: String(x.id || uid()),
+      activityId: String(x.activityId),
+      start,
+      end,
+      minutes,
+      note: String(x.note || ""),
+      reason: String(x.reason || ""),
+      status: ["planned", "done", "skipped"].includes(x.status) ? x.status : "planned",
+      shared: x.shared === true,
+      createdBy: PROFILES.includes(x.createdBy) ? x.createdBy : "",
+      createdAt: x.createdAt || nowISODate(),
+    };
+  }
+
+  /* Orden del plan: primero lo que tiene hora, en orden de reloj; después lo suelto. */
+  function sortPlannedBlocks(blocks) {
+    return blocks.slice().sort((a, b) => {
+      if (a.start && b.start) return a.start.localeCompare(b.start);
+      if (a.start) return -1;
+      if (b.start) return 1;
+      return String(a.createdAt).localeCompare(String(b.createdAt));
+    });
+  }
+
   function migrateProfileLogs(logs) {
     if (!logs || typeof logs !== "object") return {};
     Object.keys(logs).forEach(iso => {
@@ -311,25 +356,9 @@
         .filter(x => x.minutes > 0);
 
       day.plannedEntries = day.plannedEntries
-        .filter(x => x && typeof x === "object" && x.activityId && x.start && x.end)
-        .map(x => {
-          const start = parseDoneTime(x.start);
-          const end = parseDoneTime(x.end);
-          const startMin = clockToMinutes(start);
-          const endMin = clockToMinutes(end);
-          const minutes = ensureStep(x.minutes || (startMin != null && endMin != null ? endMin - startMin : 0));
-          return {
-            id: String(x.id || uid()),
-            activityId: String(x.activityId),
-            start,
-            end,
-            minutes,
-            reason: String(x.reason || ""),
-            status: ["planned", "done", "skipped"].includes(x.status) ? x.status : "planned",
-            createdAt: x.createdAt || nowISODate(),
-          };
-        })
-        .filter(x => x.start && x.end && x.minutes > 0);
+        .filter(x => x && typeof x === "object" && x.activityId)
+        .map(normalizePlannedBlock)
+        .filter(Boolean);
     });
     return logs;
   }
@@ -363,6 +392,14 @@
 
       prof.cycle = normalizeCycle(prof.weeklyCycles[startOfWeekISO(todayISO())] || prof.cycle);
       prof.logs = migrateProfileLogs(prof.logs);
+    });
+
+    if (!raw.sharedPlan || typeof raw.sharedPlan !== "object") raw.sharedPlan = {};
+    Object.keys(raw.sharedPlan).forEach(iso => {
+      const list = Array.isArray(raw.sharedPlan[iso]) ? raw.sharedPlan[iso] : [];
+      const clean = list.map(x => normalizePlannedBlock({ ...x, shared: true })).filter(Boolean);
+      if (clean.length) raw.sharedPlan[iso] = clean;
+      else delete raw.sharedPlan[iso];
     });
 
     const addedDefaults = mergeDefaultActivities(raw);
@@ -626,6 +663,151 @@
 
     saveDB();
     return true;
+  }
+
+  /* ============================================================
+     Plan del día
+     Registrar es mirar atrás; planear es mirar adelante. Los bloques
+     planeados viven en day.plannedEntries (propios) y en db.sharedPlan
+     (los de a dos), y se leen siempre juntos.
+     ============================================================ */
+
+  function ensureSharedDay(iso) {
+    if (!db.sharedPlan || typeof db.sharedPlan !== "object") db.sharedPlan = {};
+    if (!Array.isArray(db.sharedPlan[iso])) db.sharedPlan[iso] = [];
+    return db.sharedPlan[iso];
+  }
+
+  /* Todo el plan de un día: lo propio + lo compartido, ya ordenado. */
+  function getPlanFor(iso) {
+    const own = ensureDay(iso).plannedEntries || [];
+    const shared = (db.sharedPlan?.[iso] || []).map(b => ({ ...b, shared: true }));
+    return sortPlannedBlocks(own.concat(shared));
+  }
+
+  function findPlannedBlock(iso, blockId) {
+    const own = (activeProfileData().logs[iso]?.plannedEntries || []).find(b => b.id === blockId);
+    if (own) return { block: own, shared: false };
+    const shared = (db.sharedPlan?.[iso] || []).find(b => b.id === blockId);
+    if (shared) return { block: shared, shared: true };
+    return null;
+  }
+
+  function addPlannedBlock(iso, data) {
+    const block = normalizePlannedBlock({
+      ...data,
+      id: uid(),
+      status: "planned",
+      createdBy: activeProfile(),
+      createdAt: nowISODate(),
+    });
+    if (!block) return null;
+
+    if (block.shared) ensureSharedDay(iso).push(block);
+    else ensureDay(iso).plannedEntries.push(block);
+
+    saveDB();
+    return block;
+  }
+
+  function updatePlannedBlock(iso, blockId, data) {
+    const found = findPlannedBlock(iso, blockId);
+    if (!found) return null;
+
+    const merged = normalizePlannedBlock({ ...found.block, ...data, id: blockId });
+    if (!merged) return null;
+
+    /* Si cambió de propio a compartido (o al revés) hay que moverlo de lista. */
+    if (merged.shared !== found.shared) {
+      removePlannedBlock(iso, blockId, { silent: true });
+      if (merged.shared) ensureSharedDay(iso).push(merged);
+      else ensureDay(iso).plannedEntries.push(merged);
+    } else {
+      Object.assign(found.block, merged);
+    }
+
+    saveDB();
+    return merged;
+  }
+
+  function removePlannedBlock(iso, blockId, { silent = false } = {}) {
+    const day = ensureDay(iso);
+    const before = day.plannedEntries.length + (db.sharedPlan?.[iso]?.length || 0);
+
+    day.plannedEntries = day.plannedEntries.filter(b => b.id !== blockId);
+    if (Array.isArray(db.sharedPlan?.[iso])) {
+      db.sharedPlan[iso] = db.sharedPlan[iso].filter(b => b.id !== blockId);
+      if (!db.sharedPlan[iso].length) delete db.sharedPlan[iso];
+    }
+
+    const removed = before > day.plannedEntries.length + (db.sharedPlan?.[iso]?.length || 0);
+    if (removed && !silent) saveDB();
+    return removed;
+  }
+
+  function setPlannedStatus(iso, blockId, status) {
+    const found = findPlannedBlock(iso, blockId);
+    if (!found) return null;
+    found.block.status = ["planned", "done", "skipped"].includes(status) ? status : "planned";
+    saveDB();
+    return found.block;
+  }
+
+  /* Cierra el ciclo: un bloque cuya actividad ya se hizo ese día cuenta como
+     cumplido sin que nadie lo marque dos veces. Solo sube de planeado a hecho;
+     nunca deshace un "saltado" puesto a mano. */
+  function reconcilePlanWithReality(iso) {
+    let changed = false;
+    getPlanFor(iso).forEach(block => {
+      if (block.status !== "planned") return;
+      const activity = aById(block.activityId);
+      if (!activity) return;
+      if (isDoneFor(iso, activity) || getLoggedDuration(iso, block.activityId) > 0) {
+        const found = findPlannedBlock(iso, block.id);
+        if (found) {
+          found.block.status = "done";
+          changed = true;
+        }
+      }
+    });
+    return changed;
+  }
+
+  /* Plan contra realidad, para el día seleccionado. */
+  function getPlanMetrics(iso) {
+    const plan = getPlanFor(iso);
+    const done = plan.filter(b => b.status === "done").length;
+    const skipped = plan.filter(b => b.status === "skipped").length;
+    const pending = plan.filter(b => b.status === "planned").length;
+    const plannedMinutes = sum(plan.map(b => b.minutes));
+    const realMinutes = sum(plan.map(b => getLoggedDuration(iso, b.activityId)));
+
+    return {
+      total: plan.length,
+      done,
+      skipped,
+      pending,
+      plannedMinutes,
+      realMinutes,
+      pct: plan.length ? done / plan.length : 0,
+      /* Cuánto se desvió el tiempo real del estimado, solo si hay ambos. */
+      driftMinutes: plannedMinutes && realMinutes ? realMinutes - plannedMinutes : 0,
+    };
+  }
+
+  /* Actividades de rotación semanal que siguen sin fecha asignada en la semana.
+     Es la lista de "esto falta, ¿cuándo lo hacemos?". */
+  function getUnscheduledForWeek(weekStartISO) {
+    const days = Array.from({ length: 7 }, (_, i) => addDays(weekStartISO, i));
+    const cycle = getCycleFor(weekStartISO);
+    const plannedIds = new Set();
+
+    days.forEach(iso => getPlanFor(iso).forEach(b => plannedIds.add(b.activityId)));
+
+    return activeActivities()
+      .filter(a => a.type === "complement")
+      .filter(a => !cycle?.done?.[a.id])
+      .filter(a => !plannedIds.has(a.id));
   }
 
   function getFilteredActivities({ forManage = false } = {}) {
@@ -1924,6 +2106,279 @@
     }
   }
 
+  /* ============================================================
+     Plan del día: interfaz
+     ============================================================ */
+
+  function planStatusLabel(status) {
+    if (status === "done") return "cumplido";
+    if (status === "skipped") return "no fue";
+    return "planeado";
+  }
+
+  function renderPlanBlock(iso, block) {
+    const activity = aById(block.activityId);
+    if (!activity) return "";
+
+    const real = getLoggedDuration(iso, block.activityId);
+    const timeText = block.start
+      ? `${escapeHTML(block.start)}${block.end ? ` – ${escapeHTML(block.end)}` : ""}`
+      : "En el día";
+
+    return `
+      <div class="planBlock is-${escapeHTML(block.status)}" data-block="${escapeHTML(block.id)}">
+        <div class="planTime ${block.start ? "" : "planTimeLoose"}">${timeText}</div>
+
+        <div class="planBody">
+          <div class="planTitle">${escapeHTML(activity.name)}</div>
+
+          <div class="planMeta">
+            <span class="tag">${escapeHTML(activity.category)}</span>
+            ${block.minutes ? `<span class="tag">${escapeHTML(fmtDurationMin(block.minutes))} previsto</span>` : ""}
+            ${real ? `<span class="tag tagTime">⏱ ${escapeHTML(fmtDurationMin(real))} real</span>` : ""}
+            ${block.shared ? `<span class="tag tagShared">♥ Los dos</span>` : ""}
+            <span class="tag tagStatus">${escapeHTML(planStatusLabel(block.status))}</span>
+          </div>
+
+          ${block.note ? `<div class="planNote">${escapeHTML(block.note)}</div>` : ""}
+          ${block.reason ? `<div class="planReason">${escapeHTML(block.reason)}</div>` : ""}
+        </div>
+
+        <div class="planActions">
+          <button class="miniBtn2" type="button" data-plan="done" data-id="${escapeHTML(block.id)}" title="Marcar como cumplido">
+            ${block.status === "done" ? "✓ Cumplido" : "Cumplido"}
+          </button>
+
+          <button class="miniBtn2" type="button" data-plan="skipped" data-id="${escapeHTML(block.id)}" title="No pasó, y está bien">
+            No fue
+          </button>
+
+          <button class="miniBtn2" type="button" data-plan="edit" data-id="${escapeHTML(block.id)}" title="Editar bloque">
+            Editar
+          </button>
+
+          <button class="miniBtn2 isDanger" type="button" data-plan="remove" data-id="${escapeHTML(block.id)}" title="Quitar del plan">
+            Quitar
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderDayPlan() {
+    if (!els.dayPlanWrap) return;
+
+    const iso = state.dateISO;
+    if (reconcilePlanWithReality(iso)) saveDB();
+
+    const plan = getPlanFor(iso);
+    const m = getPlanMetrics(iso);
+    const isPast = iso < todayISO();
+
+    const summary = plan.length
+      ? `${m.done} de ${m.total} ${m.total === 1 ? "cumplido" : "cumplidos"}${
+          m.skipped ? ` · ${m.skipped} no ${m.skipped === 1 ? "fue" : "fueron"}` : ""
+        }${
+          m.plannedMinutes ? ` · ${escapeHTML(fmtDurationMin(m.plannedMinutes))} previstos` : ""
+        }`
+      : isPast
+        ? "Este día no se planeó."
+        : "Todavía no hay plan para este día.";
+
+    els.dayPlanWrap.innerHTML = `
+      <div class="dayPlan">
+        <div class="dayPlanHeader">
+          <div>
+            <div class="subTitle">Plan de navegación</div>
+            <div class="dayPlanSummary">${summary}</div>
+          </div>
+
+          <button class="btn" type="button" data-plan="add">+ Añadir al plan</button>
+        </div>
+
+        ${plan.length
+          ? `<div class="planList">${plan.map(b => renderPlanBlock(iso, b)).join("")}</div>`
+          : `<div class="planEmpty">
+               ${isPast
+                 ? "Sin plan previo. Lo de abajo es lo que terminó pasando."
+                 : "Añade lo que quieren hacer este día. Con hora si importa cuándo, o suelto si solo importa que pase."}
+             </div>`
+        }
+
+        ${m.driftMinutes
+          ? `<div class="planDrift">${m.driftMinutes > 0 ? "Tomó" : "Tomó"} ${escapeHTML(fmtDurationMin(Math.abs(m.driftMinutes)))} ${m.driftMinutes > 0 ? "más" : "menos"} de lo previsto.</div>`
+          : ""
+        }
+      </div>
+    `;
+  }
+
+  /* Formulario de bloque. Sirve para crear y para editar: si llega un bloque,
+     precarga sus valores. */
+  /* Hora sugerida para un bloque nuevo: después de lo último registrado ese día;
+     si no hay nada, el siguiente cuarto de hora (solo si el día es hoy); y si es
+     un día futuro, las 9:00. Nunca medianoche, que es lo que devuelve un día vacío. */
+  function suggestedStartFor(iso) {
+    const afterSchedule = getScheduleEndMinutes(iso);
+    if (afterSchedule > 0) return toClock(Math.ceil(afterSchedule / DURATION_STEP) * DURATION_STEP);
+
+    if (iso === todayISO()) {
+      const now = clockToMinutes(nowHHMM());
+      const next = Math.ceil((now + 5) / DURATION_STEP) * DURATION_STEP;
+      if (next < 23 * 60) return toClock(next);
+    }
+
+    return "09:00";
+  }
+
+  function openPlanBlockModal(iso, existing = null) {
+    const activities = activeActivities().slice().sort((a, b) => a.name.localeCompare(b.name, "es"));
+
+    if (!activities.length) {
+      toast("Primero crea alguna actividad en la pestaña Actividades.", "warn");
+      return;
+    }
+
+    const sel = existing?.activityId || activities[0].id;
+    const hasTime = existing ? !!existing.start : true;
+
+    modalOpen({
+      title: existing ? "Editar bloque del plan" : "Añadir al plan",
+      desc: fmtDateLong(iso),
+      contentHTML: `
+        <div class="planForm">
+          <div>
+            <label class="label" for="pfActivity">Actividad</label>
+            <select id="pfActivity" class="select">
+              ${activities.map(a => `
+                <option value="${escapeHTML(a.id)}" ${a.id === sel ? "selected" : ""}>
+                  ${escapeHTML(a.name)} · ${escapeHTML(a.category)}
+                </option>
+              `).join("")}
+            </select>
+          </div>
+
+          <div class="planFormRow">
+            <label class="planCheckLabel" for="pfHasTime">
+              <input type="checkbox" id="pfHasTime" class="chk" ${hasTime ? "checked" : ""} />
+              <span>A una hora concreta</span>
+            </label>
+
+            <label class="planCheckLabel" for="pfShared">
+              <input type="checkbox" id="pfShared" class="chk" ${existing?.shared ? "checked" : ""} />
+              <span>Plan de los dos</span>
+            </label>
+          </div>
+
+          <div class="grid2">
+            <div id="pfTimeFields">
+              <label class="label" for="pfStart">Hora de inicio</label>
+              <input type="time" id="pfStart" class="input" step="900" value="${escapeHTML(existing?.start || suggestedStartFor(iso))}" />
+            </div>
+
+            <div>
+              <label class="label" for="pfMinutes">Cuánto crees que tome</label>
+              <input type="number" id="pfMinutes" class="input" min="0" step="${DURATION_STEP}" value="${safeNumber(existing?.minutes, 60)}" />
+            </div>
+          </div>
+
+          <div>
+            <label class="label" for="pfNote">Nota (opcional)</label>
+            <input type="text" id="pfNote" class="input" maxlength="140" placeholder="Por qué, con quién, dónde…" value="${escapeHTML(existing?.note || "")}" />
+          </div>
+        </div>
+      `,
+      actions: [
+        { label: "Cancelar", kind: "ghost", onClick: modalClose },
+        {
+          label: existing ? "Guardar cambios" : "Añadir al plan",
+          onClick: () => {
+            const activityId = $("#pfActivity")?.value;
+            const withTime = !!$("#pfHasTime")?.checked;
+            const shared = !!$("#pfShared")?.checked;
+            const start = withTime ? parseDoneTime($("#pfStart")?.value) : null;
+            const minutes = ensureStep(safeNumber($("#pfMinutes")?.value, 0));
+            const note = String($("#pfNote")?.value || "").trim();
+
+            if (!activityId) {
+              toast("Elige una actividad.", "warn");
+              return;
+            }
+
+            if (withTime && !start) {
+              toast("Esa hora no es válida.", "warn");
+              return;
+            }
+
+            const data = { activityId, start, minutes, note, shared };
+            const saved = existing
+              ? updatePlannedBlock(iso, existing.id, data)
+              : addPlannedBlock(iso, data);
+
+            if (!saved) {
+              toast("No se pudo guardar el bloque.", "err");
+              return;
+            }
+
+            modalClose();
+            renderCurrentView();
+            toast(existing ? "Bloque actualizado." : "Añadido al plan.", "ok");
+          },
+        },
+      ],
+    });
+
+    /* Los campos de hora solo tienen sentido si el bloque va a una hora. */
+    const toggleTimeFields = () => {
+      const wrap = $("#pfTimeFields");
+      if (wrap) wrap.classList.toggle("hidden", !$("#pfHasTime")?.checked);
+    };
+
+    on($("#pfHasTime"), "change", toggleTimeFields);
+    toggleTimeFields();
+  }
+
+  function bindDayPlan(iso) {
+    if (!els.dayPlanWrap || els.dayPlanWrap.__boundDayPlan) return;
+    els.dayPlanWrap.__boundDayPlan = true;
+
+    on(els.dayPlanWrap, "click", e => {
+      const btn = e.target.closest("[data-plan]");
+      if (!btn) return;
+
+      const action = btn.dataset.plan;
+      const day = state.dateISO;
+      const id = btn.dataset.id;
+
+      if (action === "add") {
+        openPlanBlockModal(day);
+        return;
+      }
+
+      if (action === "edit") {
+        const found = findPlannedBlock(day, id);
+        if (found) openPlanBlockModal(day, found.block);
+        return;
+      }
+
+      if (action === "remove") {
+        if (removePlannedBlock(day, id)) {
+          renderCurrentView();
+          toast("Bloque quitado del plan.", "ok");
+        }
+        return;
+      }
+
+      if (action === "done" || action === "skipped") {
+        const found = findPlannedBlock(day, id);
+        /* Volver a tocar el mismo estado lo devuelve a planeado. */
+        const next = found?.block.status === action ? "planned" : action;
+        setPlannedStatus(day, id, next);
+        renderCurrentView();
+      }
+    });
+  }
+
   function renderToday() {
     const iso = state.dateISO;
     ensureDay(iso);
@@ -1939,6 +2394,8 @@
     renderSidebarDayMeta();
     renderKPIs(iso);
     renderBalancePill(iso);
+    renderDayPlan();
+    bindDayPlan(iso);
     renderTimeTracker(iso);
     bindTimeTracker(iso);
     renderSmartPlanner();
@@ -2043,13 +2500,45 @@
   function renderAgendaSchedule(iso) {
     if (!els.agendaSchedule) return;
     const schedule = buildScheduleForDay(iso);
+    const plan = getPlanFor(iso);
+
+    /* El horario ahora muestra dos capas: lo previsto y lo que de verdad pasó. */
+    const plannedHTML = plan.length
+      ? `
+        <div class="schedulePlanned">
+          <div class="scheduleLayerLabel">Previsto</div>
+          ${plan.map(block => {
+            const activity = aById(block.activityId);
+            if (!activity) return "";
+            return `
+              <div class="scheduleSlot isPlanned is-${escapeHTML(block.status)}">
+                <div class="scheduleTime">${block.start ? escapeHTML(block.start) + (block.end ? " - " + escapeHTML(block.end) : "") : "En el día"}</div>
+                <div class="scheduleBlock">
+                  <div class="scheduleBlockTitle">${escapeHTML(activity.name)}</div>
+                  <div class="scheduleBlockMeta">
+                    <span class="tag">${escapeHTML(activity.category)}</span>
+                    ${block.minutes ? `<span class="tag">${escapeHTML(fmtDurationMin(block.minutes))}</span>` : ""}
+                    ${block.shared ? `<span class="tag tagShared">♥ Los dos</span>` : ""}
+                    <span class="tag tagStatus">${escapeHTML(planStatusLabel(block.status))}</span>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `
+      : "";
+
     if (!schedule.length) {
-      els.agendaSchedule.innerHTML = `<div class="scheduleEmpty">Sin horario construido. Registra horas o bloques para que aparezca aquí.</div>`;
+      els.agendaSchedule.innerHTML = plannedHTML
+        ? plannedHTML + `<div class="scheduleEmpty">Todavía no hay nada registrado de este día.</div>`
+        : `<div class="scheduleEmpty">Sin horario. Planea bloques desde Hoy, o registra horas para construirlo hacia atrás.</div>`;
       return;
     }
 
-    els.agendaSchedule.innerHTML = `
+    els.agendaSchedule.innerHTML = plannedHTML + `
       <div class="scheduleTimeline">
+        ${plan.length ? `<div class="scheduleLayerLabel">Lo que pasó</div>` : ""}
         ${schedule.map(item => `
           <div class="scheduleSlot">
             <div class="scheduleTime">${item.startText ? `${escapeHTML(item.startText)}${item.endText ? " - " + escapeHTML(item.endText) : ""}` : "Sin hora"}</div>
@@ -2092,6 +2581,72 @@
       });
     }
 
+    /* Plan de la semana: siete columnas donde se reparte lo que se quiere hacer. */
+    if (els.weekPlanGrid) {
+      els.weekPlanGrid.innerHTML = `
+        <div class="weekPlan">
+          ${days.map(iso => {
+            const plan = getPlanFor(iso);
+            const m = getPlanMetrics(iso);
+            const isToday = iso === todayISO();
+
+            return `
+              <div class="weekPlanDay ${isToday ? "isToday" : ""}">
+                <div class="weekPlanHead">
+                  <span class="weekPlanName">${escapeHTML(dayNames[isoToDate(iso).getDay()])}</span>
+                  <span class="weekPlanDate">${escapeHTML(fmtDateShort(iso))}</span>
+                </div>
+
+                ${plan.length
+                  ? `<div class="weekPlanCount">${m.done}/${m.total}</div>`
+                  : `<div class="weekPlanCount isEmpty">—</div>`
+                }
+
+                <div class="weekPlanList">
+                  ${plan.map(block => {
+                    const activity = aById(block.activityId);
+                    if (!activity) return "";
+                    return `
+                      <div class="weekPlanItem is-${escapeHTML(block.status)}" title="${escapeHTML(activity.name)}">
+                        ${block.start ? `<span class="weekPlanTime">${escapeHTML(block.start)}</span>` : ""}
+                        <span class="weekPlanTitle">${escapeHTML(activity.name)}</span>
+                        ${block.shared ? `<span class="weekPlanShared" title="Plan de los dos">♥</span>` : ""}
+                      </div>
+                    `;
+                  }).join("")}
+                </div>
+
+                <button class="weekPlanAdd" type="button" data-week-plan="add" data-day="${escapeHTML(iso)}" title="Añadir al plan de este día">
+                  + Añadir
+                </button>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
+    }
+
+    /* Lo que la semana pide pero todavía no tiene día. */
+    if (els.weekUnscheduled) {
+      const loose = getUnscheduledForWeek(start);
+      els.weekUnscheduled.innerHTML = loose.length
+        ? `
+          <div class="looseHint">Actividades de rotación que esta semana no se han hecho ni tienen día asignado.</div>
+          <div class="looseList">
+            ${loose.map(a => `
+              <button class="looseItem" type="button" data-week-plan="assign" data-activity="${escapeHTML(a.id)}" title="Darle un día a esta actividad">
+                <span class="looseName">${escapeHTML(a.name)}</span>
+                <span class="tag">${escapeHTML(a.category)}</span>
+                <span class="looseCta">Darle día</span>
+              </button>
+            `).join("")}
+          </div>
+        `
+        : `<div class="emptyState">Todo lo de rotación ya está hecho o tiene día. Buena semana.</div>`;
+    }
+
+    bindWeekPlan();
+
     if (els.weekByDay) {
       els.weekByDay.innerHTML = days.map(iso => {
         const m = getDayMetrics(iso);
@@ -2110,6 +2665,61 @@
       const avgWeek = avg(days.map(iso => getDayMetrics(iso).pctAll));
       els.weekInsight.textContent = `Promedio semanal: ${fmtPct01(avgWeek)}. ${avgWeek >= 0.7 ? "Semana bastante sostenida." : avgWeek >= 0.35 ? "Semana con movimiento, pero irregular." : "Semana bajita. No drama, pero sí lectura honesta."}`;
     }
+  }
+
+  /* Elegir a qué día de la semana mandar una actividad suelta. */
+  function openAssignDayModal(activityId) {
+    const activity = aById(activityId);
+    if (!activity) return;
+
+    const start = state.weekStartISO || startOfWeekISO(todayISO());
+    const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+
+    modalOpen({
+      title: `¿Qué día? · ${activity.name}`,
+      desc: "Queda planeado para ese día, sin hora. Puedes darle hora después.",
+      contentHTML: `
+        <div class="assignDays">
+          ${days.map(iso => `
+            <button class="assignDay ${iso === todayISO() ? "isToday" : ""}" type="button" data-assign-day="${escapeHTML(iso)}">
+              <span class="assignDayName">${escapeHTML(dayNames[isoToDate(iso).getDay()])}</span>
+              <span class="assignDayDate">${escapeHTML(fmtDateShort(iso))}</span>
+              <span class="assignDayCount">${getPlanFor(iso).length || 0} en el plan</span>
+            </button>
+          `).join("")}
+        </div>
+      `,
+      actions: [{ label: "Cancelar", kind: "ghost", onClick: modalClose }],
+    });
+
+    $$("[data-assign-day]", els.modalContent).forEach(btn => {
+      on(btn, "click", () => {
+        const iso = btn.dataset.assignDay;
+        addPlannedBlock(iso, { activityId, start: null, minutes: 0, note: "", shared: false });
+        modalClose();
+        renderWeek();
+        toast(`${activity.name} quedó en el plan del ${fmtDateShort(iso)}.`, "ok");
+      });
+    });
+  }
+
+  function bindWeekPlan() {
+    if (!els.viewWeek || els.viewWeek.__boundWeekPlan) return;
+    els.viewWeek.__boundWeekPlan = true;
+
+    on(els.viewWeek, "click", e => {
+      const btn = e.target.closest("[data-week-plan]");
+      if (!btn) return;
+
+      if (btn.dataset.weekPlan === "add") {
+        openPlanBlockModal(btn.dataset.day);
+        return;
+      }
+
+      if (btn.dataset.weekPlan === "assign") {
+        openAssignDayModal(btn.dataset.activity);
+      }
+    });
   }
 
   function renderHistory() {

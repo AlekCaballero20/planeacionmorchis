@@ -5,7 +5,7 @@
   window.BitacoraModules = window.BitacoraModules || {};
 
   window.BitacoraModules.config = {
-    DB_SCHEMA: 6,
+    DB_SCHEMA: 7,
     PROFILES: ["alek", "cata"],
     DURATION_STEP: 15,
     MAX_ENTRY_MINUTES: 24 * 60,
